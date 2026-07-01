@@ -70,6 +70,12 @@ DEPENDENCY_RULES: dict[str, DependencyRule] = {
     "pynacl": _shor("Ed25519/Curve25519"),
     "ecdsa": _shor("ECDSA"),
     "rsa": _shor("RSA"),  # python-rsa
+    # High-level JOSE / JWT libraries: wrap asymmetric crypto (RS*/ES*/EdDSA).
+    "authlib": _shor("JOSE/OAuth: RSA/EC/OKP"),
+    "python-jose": _shor("JOSE: RSA/EC"),
+    "jwcrypto": _shor("JOSE: RSA/EC/OKP"),
+    "pyjwt": _shor("JWT: RSA/EC signatures"),
+    "josepy": _shor("JOSE: RSA/EC"),
     "oqs": _pqc("ML-KEM/ML-DSA"),  # liboqs-python
     "liboqs-python": _pqc("ML-KEM/ML-DSA"),
 }

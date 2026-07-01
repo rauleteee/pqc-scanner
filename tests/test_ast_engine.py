@@ -206,6 +206,41 @@ def test_pynacl_privatekey_generate_is_curve25519(tmp_path):
     assert finding.usage == "key_exchange"
 
 
+def test_authlib_rsakey_generate_key(tmp_path):
+    # authlib's own JWK API, wrapping cryptography. A user app calls this directly.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from authlib.jose import RSAKey\n"
+        "RSAKey.generate_key(2048)\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "RSA-2048"
+    assert finding.usage == "key_generation"
+    assert finding.severity is Severity.CRITICAL
+
+
+def test_authlib_eckey_generate_key_with_crv_kwarg(tmp_path):
+    # JOSE libraries use ``crv=`` (not ``curve=``) for the curve.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from authlib.jose import ECKey\n"
+        "ECKey.generate_key(crv='P-256')\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "ECC-P-256"
+
+
+def test_authlib_okpkey_generate_key(tmp_path):
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from authlib.jose import OKPKey\n"
+        "OKPKey.generate_key(crv='Ed25519')\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "OKP (Ed/X)"
+    assert finding.severity is Severity.CRITICAL
+
+
 def test_paramiko_rsa_key_generation(tmp_path):
     src = tmp_path / "m.py"
     src.write_text(

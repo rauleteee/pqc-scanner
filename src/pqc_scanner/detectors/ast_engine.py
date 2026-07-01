@@ -135,7 +135,8 @@ def _refine_curve(call: ast.Call, base: str) -> _Refinement:
     """``ECC`` -> ``ECC-P-256`` from a curve instance or ``curve=`` kwarg."""
     name = None
     for kw in call.keywords:
-        if kw.arg == "curve":
+        # ``curve=`` (pyca/pycryptodome) or ``crv=`` (JOSE libraries like authlib).
+        if kw.arg in ("curve", "crv"):
             name = _curve_name_from(kw.value)
     if name is None and call.args:
         name = _curve_name_from(call.args[0])

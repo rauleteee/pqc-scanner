@@ -61,6 +61,20 @@ def test_requirements_handles_extras_markers_and_options(tmp_path):
     assert "rsa" in libs and libs["rsa"].version is None  # URL requirement, no version
 
 
+def test_requirements_detects_jose_jwt_ecosystem(tmp_path):
+    manifest = tmp_path / "requirements.txt"
+    manifest.write_text(
+        "Authlib==1.3.0\n"
+        "python-jose==3.3.0\n"
+        "PyJWT==2.8.0\n"
+        "jwcrypto==1.5.0\n"
+    )
+    libs = _by_library(analyze_manifest(manifest))
+    assert set(libs) == {"authlib", "python-jose", "pyjwt", "jwcrypto"}
+    assert all(f.classification is Classification.SHOR for f in libs.values())
+    assert libs["pyjwt"].version == "2.8.0"
+
+
 def test_requirements_reports_pqc_library_as_info(tmp_path):
     manifest = tmp_path / "requirements.txt"
     manifest.write_text("oqs==0.10.0\n")

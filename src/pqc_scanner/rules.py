@@ -30,6 +30,7 @@ CRYPTO_ROOTS: frozenset[str] = frozenset(
         "nacl",  # PyNaCl
         "ecdsa",  # python-ecdsa
         "oqs",  # liboqs-python (already PQC)
+        "authlib",  # high-level JOSE/JWT: its own JWK key-generation API
     }
 )
 
@@ -38,6 +39,7 @@ _ML_KEM_DSA = "ML-KEM (key establishment) / ML-DSA (signatures)"
 _ML_KEM = "ML-KEM"
 _ML_DSA = "ML-DSA"
 _ML_KEM_ECDH_DSA = "ML-KEM (ECDH) / ML-DSA (ECDSA)"
+_ML_DSA_KEM_OKP = "ML-DSA (Ed25519/Ed448) / ML-KEM (X25519/X448)"
 _AES256 = "AES-256"
 _STRONG_HASH = "SHA-256 / SHA-3"
 _ALREADY_PQC = "already post-quantum — no migration needed"
@@ -123,6 +125,12 @@ ROOT_RULES: dict[tuple[str, str, str], Rule] = {
     ("nacl", "PrivateKey", "generate"): _shor("Curve25519", "key_exchange", _ML_KEM),
     # python-ecdsa: SigningKey.generate(curve=...) is ECDSA, not Ed25519.
     ("ecdsa", "SigningKey", "generate"): _shor("ECDSA", "signing", _ML_DSA),
+    # authlib: its JWK classes expose their own key generation, wrapping
+    # cryptography. A user app calls these directly, so cover them here (the
+    # ``oct`` symmetric key class is intentionally omitted — not a Shor concern).
+    ("authlib", "RSAKey", "generate_key"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
+    ("authlib", "ECKey", "generate_key"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
+    ("authlib", "OKPKey", "generate_key"): _shor("OKP (Ed/X)", "key_generation", _ML_DSA_KEM_OKP),
 }
 
 
