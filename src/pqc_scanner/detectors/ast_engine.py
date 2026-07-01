@@ -88,7 +88,8 @@ def _canonical_curve(name: str) -> str:
 # (``key_size`` / ``curve`` / ``parameter``) worth carrying on the finding. The
 # structured values are what the CBOM output maps cleanly, instead of re-parsing
 # the display string (which is ambiguous: ``SHA-1``, ``Diffie-Hellman-2048``...).
-_Refinement = tuple[str, dict[str, object]]
+# A ``None`` name means "suppress this finding" (e.g. ``usedforsecurity=False``).
+_Refinement = tuple[str | None, dict[str, object]]
 
 
 def _refine_key_size(call: ast.Call, base: str) -> _Refinement:
@@ -166,12 +167,28 @@ def _refine_pqc_name(call: ast.Call, base: str) -> _Refinement:
     return base, {}
 
 
+def _refine_weak_hash(call: ast.Call, base: str) -> _Refinement:
+    """Suppress a weak-hash finding when ``usedforsecurity=False`` is set.
+
+    Python 3.9+ lets a caller mark a digest as non-security
+    (``hashlib.md5(data, usedforsecurity=False)``), e.g. for cache keys. Honoring
+    it keeps false positives low: an explicit non-security digest is not a finding.
+    """
+    for kw in call.keywords:
+        if kw.arg == "usedforsecurity":
+            value = kw.value
+            if isinstance(value, ast.Constant) and value.value is False:
+                return None, {}
+    return base, {}
+
+
 # Maps a rule's ``detail`` tag to the extractor that refines the algorithm.
 _DETAIL_EXTRACTORS = {
     "key_size": _refine_key_size,
     "curve": _refine_curve,
     "sym_key": _refine_sym_key,
     "pqc_name": _refine_pqc_name,
+    "weak_hash": _refine_weak_hash,
 }
 
 
@@ -229,28 +246,30 @@ class _CryptoVisitor(ast.NodeVisitor):
             if qualified is not None:
                 rule = lookup_rule(qualified)
                 if rule is not None:
-                    algorithm = rule.algorithm
+                    algorithm: str | None = rule.algorithm
                     detail: dict[str, object] = {}
                     if rule.detail is not None:
                         algorithm, detail = _DETAIL_EXTRACTORS[rule.detail](node, algorithm)
-                    self.findings.append(
-                        Finding(
-                            path=self.path,
-                            line=node.lineno,
-                            column=node.col_offset,
-                            algorithm=algorithm,
-                            usage=rule.usage,
-                            classification=rule.classification,
-                            severity=rule.severity,
-                            origin="code",
-                            library=qualified.split(".")[0],
-                            migration_target=rule.migration_target,
-                            symbol=".".join(dotted),
-                            key_size=detail.get("key_size"),
-                            curve=detail.get("curve"),
-                            parameter=detail.get("parameter"),
+                    # An extractor may veto the finding (e.g. usedforsecurity=False).
+                    if algorithm is not None:
+                        self.findings.append(
+                            Finding(
+                                path=self.path,
+                                line=node.lineno,
+                                column=node.col_offset,
+                                algorithm=algorithm,
+                                usage=rule.usage,
+                                classification=rule.classification,
+                                severity=rule.severity,
+                                origin="code",
+                                library=qualified.split(".")[0],
+                                migration_target=rule.migration_target,
+                                symbol=".".join(dotted),
+                                key_size=detail.get("key_size"),
+                                curve=detail.get("curve"),
+                                parameter=detail.get("parameter"),
+                            )
                         )
-                    )
         self.generic_visit(node)
 
     def _resolve(self, parts: list[str]) -> str | None:

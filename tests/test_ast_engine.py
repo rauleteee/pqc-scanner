@@ -241,6 +241,29 @@ def test_authlib_okpkey_generate_key(tmp_path):
     assert finding.severity is Severity.CRITICAL
 
 
+def test_stdlib_hashlib_md5_and_sha1_are_flagged(tmp_path):
+    src = tmp_path / "m.py"
+    src.write_text(
+        "import hashlib\n"
+        "hashlib.md5(b'x')\n"
+        "hashlib.sha1(b'y')\n"
+        "hashlib.sha256(b'z')\n"  # strong: must NOT be flagged
+    )
+    by_algo = _by_algorithm(analyze_file(src))
+    assert set(by_algo) == {"MD5", "SHA-1"}
+    assert by_algo["MD5"].severity is Severity.MEDIUM
+
+
+def test_hashlib_usedforsecurity_false_is_suppressed(tmp_path):
+    # An explicit non-security digest (e.g. a cache key) is not a finding.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "import hashlib\n"
+        "hashlib.md5(b'cache-key', usedforsecurity=False)\n"
+    )
+    assert analyze_file(src) == []
+
+
 def test_paramiko_rsa_key_generation(tmp_path):
     src = tmp_path / "m.py"
     src.write_text(

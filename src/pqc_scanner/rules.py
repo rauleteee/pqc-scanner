@@ -31,6 +31,7 @@ CRYPTO_ROOTS: frozenset[str] = frozenset(
         "ecdsa",  # python-ecdsa
         "oqs",  # liboqs-python (already PQC)
         "authlib",  # high-level JOSE/JWT: its own JWK key-generation API
+        "hashlib",  # stdlib: the most common way to invoke MD5/SHA-1
     }
 )
 
@@ -93,6 +94,10 @@ RULES: dict[tuple[str, str], Rule] = {
     ("algorithms", "ARC4"): _grover("RC4", "encryption"),
     ("hashes", "SHA1"): _grover("SHA-1", "hashing", _STRONG_HASH),
     ("hashes", "MD5"): _grover("MD5", "hashing", _STRONG_HASH),
+    # --- stdlib hashlib: same weak hashes via the most common entry point ---
+    # ``usedforsecurity=False`` (Python 3.9+) suppresses the finding (see engine).
+    ("hashlib", "md5"): _grover("MD5", "hashing", _STRONG_HASH, "weak_hash"),
+    ("hashlib", "sha1"): _grover("SHA-1", "hashing", _STRONG_HASH, "weak_hash"),
     # --- pycryptodome (Crypto / Cryptodome) ---
     ("RSA", "generate"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
     ("DSA", "generate"): _shor("DSA", "signing", _ML_DSA, "key_size"),
