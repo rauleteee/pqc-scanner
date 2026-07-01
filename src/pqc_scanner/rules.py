@@ -139,6 +139,17 @@ ROOT_RULES: dict[tuple[str, str, str], Rule] = {
 }
 
 
+# pyOpenSSL's native key generation is an instance method whose *argument* carries
+# the algorithm: ``pkey.generate_key(TYPE_RSA, bits)``. The receiver (``pkey``) is a
+# runtime value we cannot resolve, but the ``TYPE_*`` constant resolves through the
+# file's imports to ``OpenSSL.crypto`` — a very specific, low-false-positive signal.
+# The engine keys this by the resolved constant (see ``_check_pyopenssl_pkey``).
+PKEY_TYPE_RULES: dict[str, Rule] = {
+    "OpenSSL.crypto.TYPE_RSA": _shor("RSA", "key_generation", _ML_KEM_DSA),
+    "OpenSSL.crypto.TYPE_DSA": _shor("DSA", "signing", _ML_DSA),
+}
+
+
 def lookup_rule(qualified_name: str) -> Rule | None:
     """Return the rule for a fully-qualified callable name, or ``None``.
 

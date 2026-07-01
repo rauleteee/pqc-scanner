@@ -264,6 +264,45 @@ def test_hashlib_usedforsecurity_false_is_suppressed(tmp_path):
     assert analyze_file(src) == []
 
 
+def test_pyopenssl_native_pkey_generate_key(tmp_path):
+    # pyOpenSSL's instance API: the receiver is a runtime value, but the TYPE_RSA
+    # argument resolves to OpenSSL.crypto and carries the algorithm.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from OpenSSL import crypto\n"
+        "from OpenSSL.crypto import TYPE_RSA\n"
+        "pkey = crypto.PKey()\n"
+        "pkey.generate_key(TYPE_RSA, 2048)\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "RSA-2048"
+    assert finding.usage == "key_generation"
+    assert finding.severity is Severity.CRITICAL
+    assert finding.library == "OpenSSL"
+
+
+def test_pyopenssl_pkey_generate_key_qualified_type(tmp_path):
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from OpenSSL import crypto\n"
+        "k = crypto.PKey()\n"
+        "k.generate_key(crypto.TYPE_DSA, 1024)\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "DSA-1024"
+
+
+def test_generate_key_without_openssl_type_is_ignored(tmp_path):
+    # A generate_key call whose arg is not an OpenSSL TYPE_* constant must not fire
+    # (guards the heuristic against false positives on unrelated APIs).
+    src = tmp_path / "m.py"
+    src.write_text(
+        "obj = SomeThing()\n"
+        "obj.generate_key(42, 2048)\n"
+    )
+    assert analyze_file(src) == []
+
+
 def test_paramiko_rsa_key_generation(tmp_path):
     src = tmp_path / "m.py"
     src.write_text(

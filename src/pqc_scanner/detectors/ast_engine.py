@@ -16,7 +16,7 @@ import ast
 from pathlib import Path
 
 from pqc_scanner.findings import Finding
-from pqc_scanner.rules import CRYPTO_ROOTS, lookup_rule
+from pqc_scanner.rules import CRYPTO_ROOTS, PKEY_TYPE_RULES, lookup_rule
 
 
 def analyze_file(path: str | Path) -> list[Finding]:
@@ -240,6 +240,7 @@ class _CryptoVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node: ast.Call) -> None:
+        handled = False
         dotted = _dotted_name(node.func)
         if dotted is not None:
             qualified = self._resolve(dotted)
@@ -252,6 +253,7 @@ class _CryptoVisitor(ast.NodeVisitor):
                         algorithm, detail = _DETAIL_EXTRACTORS[rule.detail](node, algorithm)
                     # An extractor may veto the finding (e.g. usedforsecurity=False).
                     if algorithm is not None:
+                        handled = True
                         self.findings.append(
                             Finding(
                                 path=self.path,
@@ -270,7 +272,51 @@ class _CryptoVisitor(ast.NodeVisitor):
                                 parameter=detail.get("parameter"),
                             )
                         )
+        if not handled:
+            self._check_pyopenssl_pkey(node)
         self.generic_visit(node)
+
+    def _check_pyopenssl_pkey(self, node: ast.Call) -> None:
+        """Detect pyOpenSSL's instance-method key generation by its argument.
+
+        ``pkey.generate_key(TYPE_RSA, 2048)``: the receiver is an unresolvable
+        runtime value, but ``TYPE_RSA``/``TYPE_DSA`` resolves to ``OpenSSL.crypto``
+        through the file's imports — specific enough to avoid false positives.
+        """
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr == "generate_key"):
+            return
+        if not node.args:
+            return
+        arg_dotted = _dotted_name(node.args[0])
+        if arg_dotted is None:
+            return
+        resolved = self._resolve(arg_dotted)
+        rule = PKEY_TYPE_RULES.get(resolved) if resolved is not None else None
+        if rule is None:
+            return
+        # The key size is the second positional argument (``bits``); ignore
+        # non-positive literals from error-path tests (``generate_key(TYPE_RSA, 0)``).
+        key_size = _literal_int(node.args[1]) if len(node.args) >= 2 else None
+        if key_size is not None and key_size <= 0:
+            key_size = None
+        algorithm = f"{rule.algorithm}-{key_size}" if key_size is not None else rule.algorithm
+        self.findings.append(
+            Finding(
+                path=self.path,
+                line=node.lineno,
+                column=node.col_offset,
+                algorithm=algorithm,
+                usage=rule.usage,
+                classification=rule.classification,
+                severity=rule.severity,
+                origin="code",
+                library="OpenSSL",
+                migration_target=rule.migration_target,
+                symbol=f"PKey.generate_key({arg_dotted[-1]})",
+                key_size=key_size,
+            )
+        )
 
     def _resolve(self, parts: list[str]) -> str | None:
         """Resolve a call's dotted path to a qualified name under a crypto root.
