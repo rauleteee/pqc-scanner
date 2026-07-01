@@ -118,6 +118,49 @@ def test_pycryptodome_ecc_curve_kwarg(tmp_path):
     assert finding.algorithm == "ECC-P-256"
 
 
+def test_ec_curve_passed_as_variable_is_not_invented(tmp_path):
+    # ``ec.generate_private_key(curve)`` — the curve is a variable, not resolvable
+    # statically. The finding must stay a plain ``ECC`` (still CRITICAL), never an
+    # invented ``ECC-curve`` from the variable's name.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "def make(curve):\n"
+        "    return ec.generate_private_key(curve)\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "ECC"
+    assert finding.curve is None
+    assert finding.severity is Severity.CRITICAL
+
+
+def test_ec_curve_variable_called_is_not_invented(tmp_path):
+    # ``ec.generate_private_key(curve=curve())`` where ``curve`` is a variable
+    # holding a curve class (real pattern in certbot). The call must not read the
+    # variable name ``curve`` as the curve; it stays a plain ``ECC``.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "def make(curve):\n"
+        "    return ec.generate_private_key(curve=curve())\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "ECC"
+    assert finding.curve is None
+
+
+def test_ec_curve_instance_via_kwarg(tmp_path):
+    # ``curve=ec.SECP256R1()`` (instance as keyword) must still resolve the curve.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "ec.generate_private_key(curve=ec.SECP384R1())\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "ECC-P-384"
+    assert finding.curve == "P-384"
+
+
 def test_aes_bytes_literal_reveals_key_size(tmp_path):
     src = tmp_path / "m.py"
     src.write_text(

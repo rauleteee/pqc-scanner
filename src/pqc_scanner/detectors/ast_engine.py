@@ -110,19 +110,35 @@ def _refine_key_size(call: ast.Call, base: str) -> _Refinement:
     return base, {}
 
 
+def _curve_name_from(node: ast.AST) -> str | None:
+    """Extract a curve name from a curve argument, or ``None`` if unresolvable.
+
+    A curve is only trusted when it is a **qualified** curve class instance
+    (``ec.SECP256R1()`` — a dotted ``module.CurveName``) or a string literal
+    (pycryptodome's ``curve="P-256"``). A bare local — ``generate_private_key(curve)``
+    or even ``curve=curve()`` where ``curve`` is a variable holding a curve class —
+    is *not* a curve name; resolving it needs data flow, which is out of scope. So
+    it yields ``None`` and the finding stays a plain ``ECC`` instead of an invented
+    ``ECC-curve``.
+    """
+    if isinstance(node, ast.Call):
+        dotted = _dotted_name(node.func)
+        # len >= 2 means a qualified access (``ec.SECP256R1``); a length-1 name is
+        # a bare local variable, never a curve class.
+        if dotted is not None and len(dotted) >= 2:
+            return dotted[-1]
+        return None
+    return _literal_str(node)
+
+
 def _refine_curve(call: ast.Call, base: str) -> _Refinement:
-    """``ECC`` -> ``ECC-P-256`` from the curve instance or ``curve=`` kwarg."""
+    """``ECC`` -> ``ECC-P-256`` from a curve instance or ``curve=`` kwarg."""
     name = None
     for kw in call.keywords:
         if kw.arg == "curve":
-            name = _literal_str(kw.value)
+            name = _curve_name_from(kw.value)
     if name is None and call.args:
-        arg = call.args[0]
-        # cryptography passes a curve instance, e.g. ``ec.SECP256R1()``.
-        target = arg.func if isinstance(arg, ast.Call) else arg
-        dotted = _dotted_name(target)
-        if dotted is not None:
-            name = dotted[-1]
+        name = _curve_name_from(call.args[0])
     if name is None:
         return base, {}
     curve = _canonical_curve(name)
