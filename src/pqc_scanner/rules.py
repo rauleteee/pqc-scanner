@@ -105,14 +105,24 @@ RULES: dict[tuple[str, str], Rule] = {
     ("RSAKey", "generate"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
     ("ECDSAKey", "generate"): _shor("ECDSA", "signing", _ML_DSA),
     ("DSSKey", "generate"): _shor("DSA", "signing", _ML_DSA, "key_size"),
-    # --- PyNaCl ---
-    ("SigningKey", "generate"): _shor("Ed25519", "signing", _ML_DSA),
-    ("PrivateKey", "generate"): _shor("Curve25519", "key_exchange", _ML_KEM),
     # --- python-ecdsa ---
     ("SigningKey", "from_secret_exponent"): _shor("ECDSA", "signing", _ML_DSA),
     # --- liboqs (already post-quantum -> informative) ---
     ("oqs", "Signature"): _pqc("ML-DSA/SLH-DSA", "signing"),
     ("oqs", "KeyEncapsulation"): _pqc("ML-KEM", "key_exchange"),
+}
+
+
+# Package-specific rules: some class names mean *different* algorithms depending
+# on the library (``SigningKey.generate`` is Ed25519 in PyNaCl but ECDSA in
+# python-ecdsa). These are keyed by the originating import root as well, and are
+# consulted before the root-agnostic ``RULES`` table.
+ROOT_RULES: dict[tuple[str, str, str], Rule] = {
+    # PyNaCl
+    ("nacl", "SigningKey", "generate"): _shor("Ed25519", "signing", _ML_DSA),
+    ("nacl", "PrivateKey", "generate"): _shor("Curve25519", "key_exchange", _ML_KEM),
+    # python-ecdsa: SigningKey.generate(curve=...) is ECDSA, not Ed25519.
+    ("ecdsa", "SigningKey", "generate"): _shor("ECDSA", "signing", _ML_DSA),
 }
 
 
@@ -122,9 +132,16 @@ def lookup_rule(qualified_name: str) -> Rule | None:
     The key is the last two dotted components, e.g. both
     ``cryptography.hazmat.primitives.asymmetric.rsa.generate_private_key`` and a
     direct ``from ...rsa import generate_private_key`` resolve to the same
-    ``("rsa", "generate_private_key")`` rule.
+    ``("rsa", "generate_private_key")`` rule. When a class name is shared across
+    libraries, a ``ROOT_RULES`` entry keyed by the import root (first component)
+    disambiguates and takes precedence.
     """
     parts = qualified_name.split(".")
     if len(parts) < 2:
         return None
-    return RULES.get((parts[-2], parts[-1]))
+    root, leaf, attr = parts[0], parts[-2], parts[-1]
+    # A package-specific rule (keyed by import root) wins over the generic one.
+    specific = ROOT_RULES.get((root, leaf, attr))
+    if specific is not None:
+        return specific
+    return RULES.get((leaf, attr))

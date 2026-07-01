@@ -172,6 +172,40 @@ def test_aes_bytes_literal_reveals_key_size(tmp_path):
     assert finding.classification is Classification.GROVER
 
 
+def test_signingkey_generate_is_ecdsa_for_python_ecdsa(tmp_path):
+    # SigningKey.generate is Ed25519 in PyNaCl but ECDSA in python-ecdsa; the
+    # import root must disambiguate so we don't mislabel one as the other.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from ecdsa import SigningKey, NIST256p\n"
+        "SigningKey.generate(curve=NIST256p)\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "ECDSA"
+    assert finding.severity is Severity.CRITICAL
+
+
+def test_signingkey_generate_is_ed25519_for_pynacl(tmp_path):
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from nacl.signing import SigningKey\n"
+        "SigningKey.generate()\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "Ed25519"
+
+
+def test_pynacl_privatekey_generate_is_curve25519(tmp_path):
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from nacl.public import PrivateKey\n"
+        "PrivateKey.generate()\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "Curve25519"
+    assert finding.usage == "key_exchange"
+
+
 def test_paramiko_rsa_key_generation(tmp_path):
     src = tmp_path / "m.py"
     src.write_text(
