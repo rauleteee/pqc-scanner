@@ -1,0 +1,130 @@
+# PQC Scanner
+
+Open-source CLI that scans a local repository for cryptography vulnerable to
+quantum computing (RSA, ECC, ...) and produces an exposure report with concrete
+post-quantum migration targets.
+
+> You can't migrate what you can't see. PQC Scanner is the inventory/visibility
+> step of a post-quantum migration: it finds where quantum-vulnerable
+> cryptography lives in your code and dependencies, and tells you what to move it to.
+
+> **Status:** v1, Python only. AST detection engine, dependency-manifest
+> complement, rule base, CycloneDX CBOM output and CLI are in place.
+
+## What it detects
+
+Two static detectors feed one report:
+
+- **Source code (AST) — high signal.** Parses Python with the standard `ast`
+  module and reports *real uses* of vulnerable primitives (a crypto import **plus**
+  a matching call), so comments or variable names never trigger a finding.
+  Extracts detail: RSA/DSA/DH key size, EC curve (normalized across libraries —
+  `SECP256R1`/`P-256`/`prime256v1` → `P-256`), AES key length, PQC scheme.
+- **Dependency manifests — complement.** Parses `requirements.txt`,
+  `pyproject.toml` (PEP 621 + Poetry), `poetry.lock` and `Pipfile.lock` and flags
+  declared cryptographic libraries with their version. Low signal on its own (it
+  says a library is present, not that a primitive is used), but it seeds the CBOM.
+
+Each finding carries: location, algorithm, usage context, quantum classification
+(Shor / Grover / already-PQC), severity, origin (code location | package+version)
+and a **suggested PQC migration target** (key exchange → ML-KEM, signatures → ML-DSA).
+
+## Installation
+
+Once published to PyPI (with [pipx](https://pipx.pypa.io) for an isolated CLI):
+
+```bash
+pipx install pqc-scanner        # not published yet — see "from source" below
+```
+
+From a local clone (works today):
+
+```bash
+git clone https://github.com/rauleteee/pqc-scanner
+cd pqc-scanner
+pipx install .                  # isolated, adds the `pqc-scanner` command
+```
+
+Or for development:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+## Usage
+
+```bash
+pqc-scanner [PATH]            # colored terminal summary (default PATH: .)
+pqc-scanner [PATH] --json     # CycloneDX 1.6 CBOM to stdout
+python -m pqc_scanner [PATH]  # equivalent, without installing
+```
+
+Running it against the bundled `examples/` (Python source + a `requirements.txt`):
+
+```text
+pqc-scanner 0.1.0  ·  scanned examples
+CRITICAL: 5  MEDIUM: 1  INFO: 1
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location              ┃ Migrate to             ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ CRITICAL │ RSA/ECC/DH/Ed25519 │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │
+│ CRITICAL │ RSA/ECC (OpenSSL)  │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │
+│ CRITICAL │ RSA/ECDSA (SSH)    │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │
+│ CRITICAL │ RSA-2048           │ key_generation │ examples/vulnerable_… │ ML-KEM / ML-DSA        │
+│ CRITICAL │ ECC-P-256          │ key_generation │ examples/vulnerable_… │ ML-KEM (ECDH) / ML-DSA │
+│ MEDIUM   │ AES                │ encryption     │ examples/vulnerable_… │ AES-256                │
+│ INFO     │ ML-KEM/ML-DSA      │ dependency     │ examples/requirements │ already post-quantum   │
+└──────────┴────────────────────┴────────────────┴───────────────────────┴────────────────────────┘
+Verdict: quantum-critical cryptography in use — migration needed.
+```
+
+The header count (`CRITICAL: 5  MEDIUM: 1  INFO: 1`) is the at-a-glance verdict.
+
+### JSON / CBOM output
+
+`--json` emits a **CycloneDX 1.6 CBOM** (Cryptography Bill of Materials),
+validated against the official schema. Code findings become `cryptographic-asset`
+components; dependency findings become `library` components (with `purl` and
+version). The scanner's assessment (severity, quantum classification, migration
+target) rides along as namespaced `properties`.
+
+```bash
+pqc-scanner path/to/repo --json > cbom.json
+```
+
+## Architecture
+
+The engine is a **library**; the interfaces are **thin wrappers**. All detection
+logic lives in the `pqc_scanner` core, exposed through a small public API:
+
+```python
+from pqc_scanner import scan, to_cbom
+findings = scan(path)          # list[Finding]  (code + dependency findings)
+cbom = to_cbom(findings)       # CycloneDX 1.6 CBOM dict
+```
+
+The CLI (and later the MCP server and skill) are just faces of the same engine.
+
+## Tests
+
+```bash
+pytest
+```
+
+## v1 scope
+
+- **Python** ecosystem only.
+- **Static** analysis of local files: source code (AST) + dependency manifests.
+- Outputs: colored terminal summary + JSON aligned with CycloneDX CBOM.
+
+**Known limit (by design):** the AST engine detects direct, statically-resolvable
+use; strong indirection (dependency injection, factories, dynamic `getattr`) is
+out of scope until a future data-flow/taint layer. The dependency complement is a
+presence lookup, not proof a primitive is used.
+
+See [`CLAUDE.md`](CLAUDE.md) for the full design and build plan.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

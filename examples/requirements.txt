@@ -1,0 +1,7 @@
+# Sample manifest for the dependency complement (not a real project).
+# Mixes quantum-vulnerable crypto libraries, an already-PQC one, and noise.
+cryptography==41.0.7      # RSA/ECC/DH — broken by Shor
+pyOpenSSL>=23.0           # unpinned: reported without a version
+paramiko==3.4.0           # SSH RSA/ECDSA keys
+oqs==0.10.0               # already post-quantum (informative)
+requests==2.31.0          # not crypto — must be ignored

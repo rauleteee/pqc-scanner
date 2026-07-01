@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pqc-scanner"
+version = "0.1.0"
+description = "Scans local repositories for quantum-vulnerable cryptography and produces an exposure report with post-quantum migration targets."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Aaron Vives", email = "aaronvives@icloud.com" }]
+keywords = ["pqc", "post-quantum", "cryptography", "security", "sast", "cbom"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Quality Assurance",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "jsonschema>=4.0",  # validates CBOM output against the CycloneDX schema
+]
+
+[project.urls]
+Homepage = "https://github.com/rauleteee/pqc-scanner"
+Repository = "https://github.com/rauleteee/pqc-scanner"
+Issues = "https://github.com/rauleteee/pqc-scanner/issues"
+
+[project.scripts]
+pqc-scanner = "pqc_scanner.interfaces.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pqc_scanner*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
