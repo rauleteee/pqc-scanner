@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pqc_scanner.discovery import iter_python_files
+from pqc_scanner.detectors.discovery import iter_python_files
 
 
 def _make_tree(root: Path) -> None:

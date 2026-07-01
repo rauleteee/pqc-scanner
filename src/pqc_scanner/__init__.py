@@ -11,9 +11,9 @@ Public API:
 
 from __future__ import annotations
 
-from pqc_scanner.cbom import to_cbom
 from pqc_scanner.core import scan
 from pqc_scanner.findings import Classification, Finding, Severity
+from pqc_scanner.outputs.cbom import to_cbom
 
 __version__ = "0.1.0"
 

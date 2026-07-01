@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from pqc_scanner import scan
-from pqc_scanner.dependencies import _normalize, analyze_manifest
-from pqc_scanner.discovery import iter_manifest_files
+from pqc_scanner.detectors.dependencies import _normalize, analyze_manifest
+from pqc_scanner.detectors.discovery import iter_manifest_files
 from pqc_scanner.findings import Classification, Severity
 
 

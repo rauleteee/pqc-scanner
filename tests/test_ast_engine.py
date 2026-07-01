@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pqc_scanner.ast_engine import analyze_file
+from pqc_scanner.detectors.ast_engine import analyze_file
 from pqc_scanner.findings import Classification, Severity
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "vulnerable_sample.py"

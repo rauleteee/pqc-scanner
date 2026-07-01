@@ -13,9 +13,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pqc_scanner.ast_engine import analyze_file
-from pqc_scanner.dependencies import analyze_manifest
-from pqc_scanner.discovery import iter_manifest_files, iter_python_files
+from pqc_scanner.detectors.ast_engine import analyze_file
+from pqc_scanner.detectors.dependencies import analyze_manifest
+from pqc_scanner.detectors.discovery import iter_manifest_files, iter_python_files
 from pqc_scanner.findings import Finding
 
 
