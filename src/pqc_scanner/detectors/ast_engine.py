@@ -17,7 +17,13 @@ import re
 from pathlib import Path
 
 from pqc_scanner.findings import Finding
-from pqc_scanner.rules import CRYPTO_ROOTS, PKEY_TYPE_RULES, lookup_rule
+from pqc_scanner.rules import (
+    CRYPTO_ROOTS,
+    PKEY_TYPE_RULES,
+    DispatchRule,
+    lookup_dispatch,
+    lookup_rule,
+)
 
 
 def analyze_file(path: str | Path) -> list[Finding]:
@@ -109,7 +115,7 @@ def _refine_key_size(call: ast.Call, base: str) -> _Refinement:
     ``(public_exponent, key_size)``, whose first arg is *not* the size.
     """
     for kw in call.keywords:
-        if kw.arg in ("key_size", "bits", "key_length"):
+        if kw.arg in ("key_size", "bits", "key_length", "size", "bit_size"):
             value = _literal_int(kw.value)
             if value is not None:
                 return f"{base}-{value}", {"key_size": value}
@@ -259,35 +265,67 @@ class _CryptoVisitor(ast.NodeVisitor):
             qualified = self._resolve(dotted)
             if qualified is not None:
                 rule = lookup_rule(qualified)
+                if rule is None:
+                    # No direct rule: maybe the algorithm rides in a string arg
+                    # (``JWK.generate(kty="RSA")``, ``generate_private_key("ssh-rsa")``).
+                    dispatch = lookup_dispatch(qualified)
+                    if dispatch is not None:
+                        rule = self._resolve_dispatch(dispatch, node)
                 if rule is not None:
-                    algorithm: str | None = rule.algorithm
-                    detail: dict[str, object] = {}
-                    if rule.detail is not None:
-                        algorithm, detail = _DETAIL_EXTRACTORS[rule.detail](node, algorithm)
-                    # An extractor may veto the finding (e.g. usedforsecurity=False).
-                    if algorithm is not None:
-                        handled = True
-                        self.findings.append(
-                            Finding(
-                                path=self.path,
-                                line=node.lineno,
-                                column=node.col_offset,
-                                algorithm=algorithm,
-                                usage=rule.usage,
-                                classification=rule.classification,
-                                severity=rule.severity,
-                                origin="code",
-                                library=qualified.split(".")[0],
-                                migration_target=rule.migration_target,
-                                symbol=".".join(dotted),
-                                key_size=detail.get("key_size"),
-                                curve=detail.get("curve"),
-                                parameter=detail.get("parameter"),
-                            )
-                        )
+                    handled = self._emit(node, dotted, qualified, rule)
         if not handled:
             self._check_pyopenssl_pkey(node)
         self.generic_visit(node)
+
+    def _emit(self, node: ast.Call, dotted: list[str], qualified: str, rule) -> bool:
+        """Build and record a finding for ``rule`` at ``node``; return whether one was.
+
+        Applies the rule's detail extractor (which may veto the finding, e.g.
+        ``usedforsecurity=False``). Shared by the direct-rule and string-dispatch paths.
+        """
+        algorithm: str | None = rule.algorithm
+        detail: dict[str, object] = {}
+        if rule.detail is not None:
+            algorithm, detail = _DETAIL_EXTRACTORS[rule.detail](node, algorithm)
+        if algorithm is None:
+            return False
+        self.findings.append(
+            Finding(
+                path=self.path,
+                line=node.lineno,
+                column=node.col_offset,
+                algorithm=algorithm,
+                usage=rule.usage,
+                classification=rule.classification,
+                severity=rule.severity,
+                origin="code",
+                library=qualified.split(".")[0],
+                migration_target=rule.migration_target,
+                symbol=".".join(dotted),
+                key_size=detail.get("key_size"),
+                curve=detail.get("curve"),
+                parameter=detail.get("parameter"),
+            )
+        )
+        return True
+
+    def _resolve_dispatch(self, dispatch: DispatchRule, node: ast.Call):
+        """Pick the rule for a string-dispatch call from its selector argument.
+
+        Reads the selector as the ``dispatch.arg`` keyword, else the first
+        positional. A literal in the table wins; any other literal — or a
+        non-literal / missing selector — falls back to ``dispatch.default`` (which
+        may be ``None`` to suppress, e.g. an unresolved JOSE ``kty``).
+        """
+        selector = None
+        for kw in node.keywords:
+            if kw.arg == dispatch.arg:
+                selector = _literal_str(kw.value)
+        if selector is None and node.args:
+            selector = _literal_str(node.args[0])
+        if selector is not None:
+            return dispatch.table.get(selector.lower(), dispatch.default)
+        return dispatch.default
 
     def _check_pyopenssl_pkey(self, node: ast.Call) -> None:
         """Detect pyOpenSSL's instance-method key generation by its argument.

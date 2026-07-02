@@ -31,8 +31,14 @@ CRYPTO_ROOTS: frozenset[str] = frozenset(
         "ecdsa",  # python-ecdsa
         "rsa",  # python-rsa (pure-Python RSA; distinct from pyca's ``rsa`` module)
         "M2Crypto",  # OpenSSL wrapper: native RSA/DSA/DH/EC key generation
+        "fastecdsa",  # ECDSA key generation (gen_private_key / gen_keypair)
+        "libnacl",  # libsodium wrapper (Ed25519 / Curve25519 keypairs)
+        "pysodium",  # libsodium wrapper (Ed25519 / Curve25519 keypairs)
         "oqs",  # liboqs-python (already PQC)
         "authlib",  # high-level JOSE/JWT: its own JWK key-generation API
+        "jwcrypto",  # JOSE: JWK.generate(kty=...) string dispatcher
+        "asyncssh",  # SSH: generate_private_key(alg) string dispatcher
+        "oscrypto",  # asymmetric.generate_pair(algo) string dispatcher
         "hashlib",  # stdlib: the most common way to invoke MD5/SHA-1
     }
 )
@@ -150,6 +156,17 @@ ROOT_RULES: dict[tuple[str, str, str], Rule] = {
     ("M2Crypto", "DSA", "gen_params"): _shor("DSA", "signing", _ML_DSA, "key_size"),
     ("M2Crypto", "EC", "gen_params"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
     ("M2Crypto", "DH", "gen_params"): _shor("Diffie-Hellman", "key_exchange", _ML_KEM),
+    # fastecdsa: module-level ECDSA key generation (``keys`` submodule).
+    ("fastecdsa", "keys", "gen_private_key"): _shor("ECDSA", "signing", _ML_DSA),
+    ("fastecdsa", "keys", "gen_keypair"): _shor("ECDSA", "signing", _ML_DSA),
+    # libsodium wrappers (libnacl / pysodium): top-level module functions, so the
+    # leaf equals the import root. ``sign`` -> Ed25519; ``box``/``kx`` -> Curve25519.
+    ("libnacl", "libnacl", "crypto_sign_keypair"): _shor("Ed25519", "signing", _ML_DSA),
+    ("libnacl", "libnacl", "crypto_box_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
+    ("libnacl", "libnacl", "crypto_kx_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
+    ("pysodium", "pysodium", "crypto_sign_keypair"): _shor("Ed25519", "signing", _ML_DSA),
+    ("pysodium", "pysodium", "crypto_box_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
+    ("pysodium", "pysodium", "crypto_kx_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
 }
 
 
@@ -162,6 +179,84 @@ PKEY_TYPE_RULES: dict[str, Rule] = {
     "OpenSSL.crypto.TYPE_RSA": _shor("RSA", "key_generation", _ML_KEM_DSA),
     "OpenSSL.crypto.TYPE_DSA": _shor("DSA", "signing", _ML_DSA),
 }
+
+
+@dataclass(frozen=True)
+class DispatchRule:
+    """Key generation whose algorithm rides in a string argument.
+
+    Several APIs pick the algorithm from a string literal at the call site
+    (``JWK.generate(kty="RSA")``, ``generate_private_key("ssh-rsa")``,
+    ``generate_pair("rsa")``). Because the selector is a literal, this stays
+    low-false-positive without data flow — the same idea as the pyOpenSSL
+    ``TYPE_*`` heuristic, but keyed on a string instead of a constant.
+
+    ``arg`` is the keyword to read; if absent, the engine falls back to the first
+    positional argument. A literal found in ``table`` yields its `Rule`. Any other
+    literal — or a non-literal / missing selector — yields ``default``. ``default``
+    of ``None`` means "not a finding": used for JOSE, where ``kty="oct"`` is a
+    symmetric key (no Shor concern) and an unresolved ``kty`` must not be guessed.
+    A non-``None`` ``default`` is for APIs where *every* selector is asymmetric and
+    Shor-broken (SSH keys, ``generate_pair``), so even an unreadable selector is
+    still a real finding.
+    """
+
+    arg: str
+    table: dict[str, Rule]
+    default: Rule | None = None
+
+
+# JOSE key-type table shared by jwcrypto and authlib. ``oct`` is deliberately
+# absent (symmetric key -> no Shor finding), and ``default=None`` suppresses it.
+_JOSE_KTY: dict[str, Rule] = {
+    "rsa": _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
+    "ec": _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
+    "okp": _shor("OKP (Ed/X)", "key_generation", _ML_DSA_KEM_OKP),
+}
+
+# Keyed by (import root, leaf, attr), like ``ROOT_RULES``.
+DISPATCH_RULES: dict[tuple[str, str, str], DispatchRule] = {
+    # jwcrypto: ``jwk.JWK.generate(kty="RSA"|"EC"|"OKP"|"oct", ...)``.
+    ("jwcrypto", "JWK", "generate"): DispatchRule("kty", _JOSE_KTY, default=None),
+    # authlib high-level: ``JsonWebKey.generate_key(kty, crv_or_size, ...)`` — the
+    # kty is the first positional argument.
+    ("authlib", "JsonWebKey", "generate_key"): DispatchRule("kty", _JOSE_KTY, default=None),
+    # asyncssh: ``generate_private_key("ssh-rsa"|"ssh-ed25519"|"ecdsa-...", ...)``.
+    # Every SSH key algorithm is asymmetric and Shor-broken, so an unknown or
+    # unreadable selector still defaults to a CRITICAL generic-SSH-key finding.
+    ("asyncssh", "asyncssh", "generate_private_key"): DispatchRule(
+        "alg_name",
+        {
+            "ssh-rsa": _shor("RSA", "key_generation", _ML_KEM_DSA),
+            "ssh-dss": _shor("DSA", "signing", _ML_DSA),
+            "ssh-ed25519": _shor("Ed25519", "signing", _ML_DSA),
+            "ssh-ed448": _shor("Ed448", "signing", _ML_DSA),
+        },
+        default=_shor("SSH key (RSA/DSA/ECDSA/EdDSA)", "key_generation", _ML_KEM_DSA),
+    ),
+    # oscrypto: ``asymmetric.generate_pair("rsa"|"dsa"|"ec", ...)`` — all Shor-broken.
+    ("oscrypto", "asymmetric", "generate_pair"): DispatchRule(
+        "algorithm",
+        {
+            "rsa": _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
+            "dsa": _shor("DSA", "signing", _ML_DSA, "key_size"),
+            "ec": _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
+        },
+        default=_shor("RSA/DSA/ECC", "key_generation", _ML_KEM_ECDH_DSA),
+    ),
+}
+
+
+def lookup_dispatch(qualified_name: str) -> DispatchRule | None:
+    """Return the string-dispatch rule for a qualified callable, or ``None``.
+
+    Keyed like ``ROOT_RULES`` by ``(root, leaf, attr)`` so the same class/function
+    name in another library cannot collide.
+    """
+    parts = qualified_name.split(".")
+    if len(parts) < 2:
+        return None
+    return DISPATCH_RULES.get((parts[0], parts[-2], parts[-1]))
 
 
 def lookup_rule(qualified_name: str) -> Rule | None:

@@ -231,6 +231,87 @@ def test_md4_new_detected(tmp_path):
     assert finding.classification is Classification.GROVER
 
 
+def test_jwcrypto_jwk_generate_dispatch_by_kty(tmp_path):
+    # The algorithm rides in the ``kty`` string: RSA/EC/OKP are asymmetric
+    # (CRITICAL); ``oct`` is a *symmetric* key and must NOT be a finding; a
+    # non-literal kty is unresolvable and must also be suppressed (no guessing).
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from jwcrypto import jwk\n"
+        "a = jwk.JWK.generate(kty='RSA', size=4096)\n"
+        "b = jwk.JWK.generate(kty='EC', curve='P-256')\n"
+        "c = jwk.JWK.generate(kty='oct', size=256)\n"
+        "d = jwk.JWK.generate(kty=other['kty'])\n"
+    )
+    by_algo = _by_algorithm(analyze_file(src))
+    assert set(by_algo) == {"RSA-4096", "ECC-P-256"}
+    assert by_algo["RSA-4096"].key_size == 4096
+    assert by_algo["ECC-P-256"].curve == "P-256"
+
+
+def test_authlib_jsonwebkey_generate_key_positional_kty(tmp_path):
+    # authlib's high-level ``JsonWebKey.generate_key(kty, crv_or_size, ...)`` takes
+    # the kty as the first positional argument.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from authlib.jose import JsonWebKey\n"
+        "k = JsonWebKey.generate_key('RSA', 2048, is_private=True)\n"
+        "s = JsonWebKey.generate_key('oct', 256, is_private=True)\n"
+    )
+    # ``oct`` is symmetric -> suppressed; RSA is CRITICAL. The size here is the
+    # second positional (``crv_or_size``), which the generic extractor doesn't read.
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "RSA"
+    assert finding.classification is Classification.SHOR
+
+
+def test_asyncssh_generate_private_key_string_dispatch(tmp_path):
+    # asyncssh key algorithms are all asymmetric/Shor-broken, so a known alg refines
+    # the name and an unknown/variable alg still yields a CRITICAL generic finding.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "import asyncssh\n"
+        "a = asyncssh.generate_private_key('ssh-rsa')\n"
+        "b = asyncssh.generate_private_key('ssh-ed25519')\n"
+        "c = asyncssh.generate_private_key('sk-ssh-ed25519@openssh.com')\n"
+        "d = asyncssh.generate_private_key(alg)\n"
+    )
+    findings = analyze_file(src)
+    assert [f.algorithm for f in findings] == [
+        "RSA",
+        "Ed25519",
+        "SSH key (RSA/DSA/ECDSA/EdDSA)",
+        "SSH key (RSA/DSA/ECDSA/EdDSA)",
+    ]
+    assert all(f.severity is Severity.CRITICAL for f in findings)
+
+
+def test_oscrypto_generate_pair_string_dispatch(tmp_path):
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from oscrypto import asymmetric\n"
+        "r = asymmetric.generate_pair('rsa', bit_size=2048)\n"
+        "e = asymmetric.generate_pair('ec', curve='secp256r1')\n"
+    )
+    by_algo = _by_algorithm(analyze_file(src))
+    assert by_algo["RSA-2048"].key_size == 2048
+    assert by_algo["ECC-P-256"].curve == "P-256"
+
+
+def test_fastecdsa_and_libsodium_wrappers(tmp_path):
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from fastecdsa.keys import gen_private_key\n"
+        "import libnacl, pysodium\n"
+        "d = gen_private_key(curve)\n"
+        "s = libnacl.crypto_sign_keypair()\n"
+        "b = pysodium.crypto_box_keypair()\n"
+    )
+    by_algo = _by_algorithm(analyze_file(src))
+    assert set(by_algo) == {"ECDSA", "Ed25519", "Curve25519"}
+    assert by_algo["Curve25519"].usage == "key_exchange"
+
+
 def test_aes_bytes_literal_reveals_key_size(tmp_path):
     src = tmp_path / "m.py"
     src.write_text(
