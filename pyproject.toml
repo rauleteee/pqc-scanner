@@ -30,9 +30,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.2",  # Model Context Protocol SDK, for the MCP server interface
+]
 dev = [
     "pytest>=7.0",
     "jsonschema>=4.0",  # validates CBOM output against the CycloneDX schema
+    "mcp>=1.2",  # exercised by the MCP interface tests
 ]
 
 [project.urls]
@@ -42,6 +46,7 @@ Issues = "https://github.com/rauleteee/pqc-scanner/issues"
 
 [project.scripts]
 pqc-scanner = "pqc_scanner.interfaces.cli:main"
+pqc-scanner-mcp = "pqc_scanner.interfaces.mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -93,6 +93,38 @@ target) rides along as namespaced `properties`.
 pqc-scanner path/to/repo --json > cbom.json
 ```
 
+## MCP server (for AI agents)
+
+The same engine is exposed over the [Model Context Protocol](https://modelcontextprotocol.io),
+so any MCP-capable agent (Claude, Cursor, …) can scan a local repo conversationally.
+
+```bash
+pip install ".[mcp]"     # installs the optional MCP SDK
+pqc-scanner-mcp          # runs the server over stdio
+```
+
+Register it with Claude Code:
+
+```bash
+claude mcp add pqc-scanner -- pqc-scanner-mcp
+```
+
+Or add it to a client config (e.g. Claude Desktop `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "pqc-scanner": { "command": "pqc-scanner-mcp" }
+  }
+}
+```
+
+It exposes two tools:
+
+- **`scan_repository(path)`** — an at-a-glance verdict, severity counts, and the
+  findings, each with its location and suggested post-quantum migration target.
+- **`generate_cbom(path)`** — the full CycloneDX 1.6 CBOM.
+
 ## Architecture
 
 The engine is a **library**; the interfaces are **thin wrappers**. All detection
@@ -104,7 +136,7 @@ findings = scan(path)          # list[Finding]  (code + dependency findings)
 cbom = to_cbom(findings)       # CycloneDX 1.6 CBOM dict
 ```
 
-The CLI (and later the MCP server and skill) are just faces of the same engine.
+The CLI and the MCP server are just thin faces of the same engine (a skill is next).
 
 ## Tests
 
