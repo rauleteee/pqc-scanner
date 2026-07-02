@@ -29,6 +29,8 @@ CRYPTO_ROOTS: frozenset[str] = frozenset(
         "paramiko",  # SSH
         "nacl",  # PyNaCl
         "ecdsa",  # python-ecdsa
+        "rsa",  # python-rsa (pure-Python RSA; distinct from pyca's ``rsa`` module)
+        "M2Crypto",  # OpenSSL wrapper: native RSA/DSA/DH/EC key generation
         "oqs",  # liboqs-python (already PQC)
         "authlib",  # high-level JOSE/JWT: its own JWK key-generation API
         "hashlib",  # stdlib: the most common way to invoke MD5/SHA-1
@@ -108,6 +110,10 @@ RULES: dict[tuple[str, str], Rule] = {
     ("ARC4", "new"): _grover("RC4", "encryption"),
     ("SHA1", "new"): _grover("SHA-1", "hashing", _STRONG_HASH),
     ("MD5", "new"): _grover("MD5", "hashing", _STRONG_HASH),
+    # MD4 is fully broken (worse than MD5); still used for NTLM hashes (impacket).
+    ("MD4", "new"): _grover("MD4", "hashing", _STRONG_HASH),
+    # --- python-rsa (pure-Python RSA): the public entry point is ``rsa.newkeys`` ---
+    ("rsa", "newkeys"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
     # --- paramiko (SSH keys) ---
     ("RSAKey", "generate"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
     ("ECDSAKey", "generate"): _shor("ECDSA", "signing", _ML_DSA),
@@ -136,6 +142,14 @@ ROOT_RULES: dict[tuple[str, str, str], Rule] = {
     ("authlib", "RSAKey", "generate_key"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
     ("authlib", "ECKey", "generate_key"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
     ("authlib", "OKPKey", "generate_key"): _shor("OKP (Ed/X)", "key_generation", _ML_DSA_KEM_OKP),
+    # M2Crypto's native key generation are module-level functions whose names
+    # (``gen_key``/``gen_params``) are M2Crypto-specific, so key them by root to
+    # avoid ever colliding with the same class names in other libraries. Real use
+    # includes Salt (``M2Crypto.RSA.gen_key(bits, ...)`` in salt/modules/x509.py).
+    ("M2Crypto", "RSA", "gen_key"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
+    ("M2Crypto", "DSA", "gen_params"): _shor("DSA", "signing", _ML_DSA, "key_size"),
+    ("M2Crypto", "EC", "gen_params"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
+    ("M2Crypto", "DH", "gen_params"): _shor("Diffie-Hellman", "key_exchange", _ML_KEM),
 }
 
 

@@ -13,6 +13,7 @@ matching call, not just the presence of a name.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 from pqc_scanner.findings import Finding
@@ -84,6 +85,14 @@ def _canonical_curve(name: str) -> str:
     return _CURVE_ALIASES.get(key, name)
 
 
+# What a real elliptic-curve *class* name looks like (``ec.SECP256R1()``,
+# ``ec.SECT233K1()``, ``ec.BrainpoolP256R1()``). Used to tell a curve-class
+# instance apart from an ordinary method call that merely *returns* a curve
+# (``self.oid.curve()``, ``algorithm.signing_algorithm_info()``): both are dotted
+# calls, but only the former names the curve, so only it may be read as one.
+_CURVE_CLASS_RE = re.compile(r"^(?:sec[pt]\d+[kr]\d+|brainpool[a-z]\d+[a-z]\d+)$", re.IGNORECASE)
+
+
 # An extractor returns the refined display name plus any structured attributes
 # (``key_size`` / ``curve`` / ``parameter``) worth carrying on the finding. The
 # structured values are what the CBOM output maps cleanly, instead of re-parsing
@@ -114,19 +123,23 @@ def _refine_key_size(call: ast.Call, base: str) -> _Refinement:
 def _curve_name_from(node: ast.AST) -> str | None:
     """Extract a curve name from a curve argument, or ``None`` if unresolvable.
 
-    A curve is only trusted when it is a **qualified** curve class instance
-    (``ec.SECP256R1()`` — a dotted ``module.CurveName``) or a string literal
-    (pycryptodome's ``curve="P-256"``). A bare local — ``generate_private_key(curve)``
-    or even ``curve=curve()`` where ``curve`` is a variable holding a curve class —
-    is *not* a curve name; resolving it needs data flow, which is out of scope. So
-    it yields ``None`` and the finding stays a plain ``ECC`` instead of an invented
-    ``ECC-curve``.
+    A curve is only trusted when it is a **qualified curve class** instance whose
+    name matches ``_CURVE_CLASS_RE`` (``ec.SECP256R1()`` — a dotted
+    ``module.CurveName``) or a string literal (pycryptodome's ``curve="P-256"``).
+    Anything else is *not* a curve name and yields ``None`` (the finding stays a
+    plain ``ECC`` instead of an invented ``ECC-curve``):
+
+    - a bare local — ``generate_private_key(curve)`` or ``curve=curve()`` where
+      ``curve`` is a variable holding a curve class (resolving it needs data flow);
+    - a plain method call that returns a curve — ``self.oid.curve()`` (PGPy),
+      ``algorithm.signing_algorithm_info()`` (aws-encryption-sdk): dotted like a
+      class instance, but the last segment is a method name, not a curve.
     """
     if isinstance(node, ast.Call):
         dotted = _dotted_name(node.func)
-        # len >= 2 means a qualified access (``ec.SECP256R1``); a length-1 name is
-        # a bare local variable, never a curve class.
-        if dotted is not None and len(dotted) >= 2:
+        # A qualified access (``ec.SECP256R1``) whose leaf actually looks like a
+        # curve class; a length-1 name is a bare local, never a curve class.
+        if dotted is not None and len(dotted) >= 2 and _CURVE_CLASS_RE.match(dotted[-1]):
             return dotted[-1]
         return None
     return _literal_str(node)

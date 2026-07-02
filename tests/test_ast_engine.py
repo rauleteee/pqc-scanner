@@ -161,6 +161,76 @@ def test_ec_curve_instance_via_kwarg(tmp_path):
     assert finding.curve == "P-384"
 
 
+def test_ec_curve_method_call_is_not_invented(tmp_path):
+    # ``ec.generate_private_key(self.oid.curve())`` (PGPy) and
+    # ``ec.generate_private_key(curve=algorithm.signing_algorithm_info())``
+    # (aws-encryption-sdk): the argument is a *method* call that returns a curve,
+    # not a curve class. Its leaf (``curve`` / ``signing_algorithm_info``) must not
+    # be read as the curve name — the finding stays a plain ``ECC``.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from cryptography.hazmat.primitives.asymmetric import ec\n"
+        "def make(self, algorithm):\n"
+        "    a = ec.generate_private_key(self.oid.curve())\n"
+        "    b = ec.generate_private_key(curve=algorithm.signing_algorithm_info())\n"
+    )
+    findings = analyze_file(src)
+    assert [f.algorithm for f in findings] == ["ECC", "ECC"]
+    assert all(f.curve is None for f in findings)
+
+
+def test_python_rsa_newkeys_detected(tmp_path):
+    # python-rsa (root ``rsa``) exposes key generation as ``rsa.newkeys(nbits)`` —
+    # a different library from pyca's ``rsa`` module. The sole positional argument
+    # is the key size.
+    src = tmp_path / "m.py"
+    src.write_text("import rsa\n(pub, priv) = rsa.newkeys(2048)\n")
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "RSA-2048"
+    assert finding.key_size == 2048
+    assert finding.severity is Severity.CRITICAL
+    assert finding.usage == "key_generation"
+
+
+def test_m2crypto_key_generation_detected(tmp_path):
+    # M2Crypto's native OpenSSL key generation (real API used by e.g. Salt).
+    src = tmp_path / "m.py"
+    src.write_text(
+        "from M2Crypto import RSA, DSA, EC, DH\n"
+        "r = RSA.gen_key(2048, 65537)\n"
+        "d = DSA.gen_params(1024)\n"
+        "e = EC.gen_params(EC.NID_secp384r1)\n"
+        "h = DH.gen_params(2048, 2)\n"
+    )
+    by_algo = _by_algorithm(analyze_file(src))
+    assert set(by_algo) == {"RSA", "DSA-1024", "ECC", "Diffie-Hellman"}
+    assert by_algo["RSA"].classification is Classification.SHOR
+    assert by_algo["ECC"].curve is None  # NID constant is not a resolvable curve
+    assert by_algo["Diffie-Hellman"].usage == "key_exchange"
+
+
+def test_m2crypto_gen_key_via_dotted_import(tmp_path):
+    # The Salt pattern: ``import M2Crypto; M2Crypto.RSA.gen_key(bits, ...)``.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "import M2Crypto\n"
+        "rsa = M2Crypto.RSA.gen_key(bits, M2Crypto.m2.RSA_F4, cb)\n"
+    )
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "RSA"  # ``bits`` is a variable -> no size
+    assert finding.classification is Classification.SHOR
+
+
+def test_md4_new_detected(tmp_path):
+    # impacket hashes NTLM passwords with MD4 (fully broken) via pycryptodome.
+    src = tmp_path / "m.py"
+    src.write_text("from Cryptodome.Hash import MD4\nh = MD4.new()\n")
+    (finding,) = analyze_file(src)
+    assert finding.algorithm == "MD4"
+    assert finding.severity is Severity.MEDIUM
+    assert finding.classification is Classification.GROVER
+
+
 def test_aes_bytes_literal_reveals_key_size(tmp_path):
     src = tmp_path / "m.py"
     src.write_text(
