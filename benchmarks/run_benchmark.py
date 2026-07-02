@@ -81,6 +81,18 @@ REPOS: dict[str, str] = {
     "fabric": "https://github.com/fabric/fabric.git",
     "sshtunnel": "https://github.com/pahaz/sshtunnel.git",
     "aws-encryption-sdk": "https://github.com/aws/aws-encryption-sdk-python.git",
+    # --- wave 4 (this session): probe UNCOVERED patterns, not more of the same ---
+    #   String-dispatcher key generation (algorithm carried in a string arg, so
+    #   resolvable without taint — same shape as the pyOpenSSL TYPE_* heuristic):
+    "asyncssh": "https://github.com/ronf/asyncssh.git",  # generate_private_key("ssh-rsa")
+    "oscrypto": "https://github.com/wbond/oscrypto.git",  # asymmetric.generate_pair("rsa", ...)
+    #   libsodium wrappers with their own roots (not PyNaCl's ``nacl``):
+    "libnacl": "https://github.com/saltstack/libnacl.git",  # crypto_box_keypair()
+    "pysodium": "https://github.com/stef/pysodium.git",  # crypto_sign_keypair()
+    #   Other asymmetric key generators outside the catalog:
+    "fastecdsa": "https://github.com/AntonKueltz/fastecdsa.git",  # keys.gen_private_key(curve)
+    "eth-keys": "https://github.com/ethereum/eth-keys.git",  # secp256k1 PrivateKey
+    "web3": "https://github.com/ethereum/web3.py.git",  # secp256k1 via eth-keys
 }
 
 HERE = Path(__file__).resolve().parent
