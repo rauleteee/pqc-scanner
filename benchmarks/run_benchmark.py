@@ -27,17 +27,60 @@ import time
 from collections import Counter
 from pathlib import Path
 
-from pqc_scanner import Severity, scan, to_cbom
+from pqc_scanner import Finding, Severity, scan, to_cbom
+from pqc_scanner.detectors.discovery import iter_python_files
 
-# Corpus chosen for a recall + precision spread: projects that really generate
-# keys (paramiko, certbot, PyJWT), a crypto-heavy stress case (pyca/cryptography),
-# and a control that should stay near-empty (requests: no direct key generation).
+# Corpus chosen for a recall + precision spread. Three groups:
+#   1) Original core: projects that really generate keys (paramiko, certbot, PyJWT),
+#      a crypto-heavy stress case (pyca/cryptography), and a control that should stay
+#      near-empty (requests: no direct key generation).
+#   2) Second wave (JOSE/JWK + assorted): authlib, python-ecdsa, PyNaCl, pyOpenSSL,
+#      pycryptodome, liboqs-python, mitmproxy, django, httpx, josepy.
+#   3) Third wave (this session): 20 more real libraries, deliberately biased toward
+#      crypto libs NOT yet in the rule catalog (rsa, M2Crypto, PGPy, jwcrypto,
+#      eth-account, coincurve, python-jose, pyjks) to hunt false negatives, plus big
+#      real-world users of covered libs (ansible, salt, scapy, twisted, impacket,
+#      borg, trustme, oauthlib, werkzeug, fabric, sshtunnel, aws-encryption-sdk).
 REPOS: dict[str, str] = {
+    # --- wave 1 ---
     "paramiko": "https://github.com/paramiko/paramiko.git",
     "certbot": "https://github.com/certbot/certbot.git",
     "pyjwt": "https://github.com/jpadilla/pyjwt.git",
     "cryptography": "https://github.com/pyca/cryptography.git",
     "requests": "https://github.com/psf/requests.git",
+    # --- wave 2 ---
+    "liboqs-python": "https://github.com/open-quantum-safe/liboqs-python.git",
+    "pycryptodome": "https://github.com/Legrandin/pycryptodome.git",
+    "pynacl": "https://github.com/pyca/pynacl.git",
+    "python-ecdsa": "https://github.com/tlsfuzzer/python-ecdsa.git",
+    "pyopenssl": "https://github.com/pyca/pyopenssl.git",
+    "authlib": "https://github.com/lepture/authlib.git",
+    "mitmproxy": "https://github.com/mitmproxy/mitmproxy.git",
+    "django": "https://github.com/django/django.git",
+    "httpx": "https://github.com/encode/httpx.git",
+    "josepy": "https://github.com/certbot/josepy.git",
+    # --- wave 3 (this session): FN-hunt crypto libs not yet in the catalog ---
+    "rsa": "https://github.com/sybrenstuvel/python-rsa.git",
+    "m2crypto": "https://gitlab.com/m2crypto/m2crypto.git",
+    "pgpy": "https://github.com/SecurityInnovation/PGPy.git",
+    "jwcrypto": "https://github.com/latchset/jwcrypto.git",
+    "eth-account": "https://github.com/ethereum/eth-account.git",
+    "coincurve": "https://github.com/ofek/coincurve.git",
+    "python-jose": "https://github.com/mpdavis/python-jose.git",
+    "pyjks": "https://github.com/kurtbrose/pyjks.git",
+    # --- wave 3: real-world users of covered libs (precision + recall) ---
+    "ansible": "https://github.com/ansible/ansible.git",
+    "salt": "https://github.com/saltstack/salt.git",
+    "scapy": "https://github.com/secdev/scapy.git",
+    "twisted": "https://github.com/twisted/twisted.git",
+    "impacket": "https://github.com/fortra/impacket.git",
+    "borg": "https://github.com/borgbackup/borg.git",
+    "trustme": "https://github.com/python-trio/trustme.git",
+    "oauthlib": "https://github.com/oauthlib/oauthlib.git",
+    "werkzeug": "https://github.com/pallets/werkzeug.git",
+    "fabric": "https://github.com/fabric/fabric.git",
+    "sshtunnel": "https://github.com/pahaz/sshtunnel.git",
+    "aws-encryption-sdk": "https://github.com/aws/aws-encryption-sdk-python.git",
 }
 
 HERE = Path(__file__).resolve().parent
@@ -75,9 +118,8 @@ def _rel(path: str, repo_root: Path) -> str:
         return path
 
 
-def render_repo(name: str, repo_root: Path) -> tuple[str, Counter]:
-    """Scan one repo and return (markdown_section, severity_counter)."""
-    findings = scan(repo_root)
+def render_repo(name: str, findings: list[Finding], repo_root: Path) -> tuple[str, Counter]:
+    """Render one repo's findings as a markdown section + severity counter."""
     counts = Counter(f.severity for f in findings)
     n_code = sum(1 for f in findings if f.origin == "code")
     n_dep = sum(1 for f in findings if f.origin == "dependency")
@@ -129,32 +171,44 @@ def main() -> int:
     ]
     sections: list[str] = []
     totals: Counter = Counter()
-    summary_rows = ["| Repo | Code | Dep | CRITICAL | MEDIUM | INFO | time |",
-                    "| --- | --- | --- | --- | --- | --- | --- |"]
+    tot_files = tot_code = tot_dep = 0
+    tot_time = 0.0
+    summary_rows = ["| Repo | Files | Code | Dep | CRITICAL | MEDIUM | INFO | time |",
+                    "| --- | --- | --- | --- | --- | --- | --- | --- |"]
 
     for name, url in REPOS.items():
         print(f"[{name}]")
         repo_root = ensure_clone(name, url, corpus, allow_clone=not args.no_clone)
         if repo_root is None:
             print(f"  skipped (not present and cloning disabled)")
-            summary_rows.append(f"| {name} | — | — | — | — | — | skipped |")
+            summary_rows.append(f"| {name} | — | — | — | — | — | — | skipped |")
             continue
         start = time.perf_counter()
-        section, counts = render_repo(name, repo_root)
+        findings = scan(repo_root)
         elapsed = time.perf_counter() - start
-        # Persist each repo's CBOM next to the report.
-        cbom = to_cbom(scan(repo_root))
-        (out / f"{name}.json").write_text(json.dumps(cbom, indent=2))
+        section, counts = render_repo(name, findings, repo_root)
+        n_files = sum(1 for _ in iter_python_files(repo_root))
+        # Persist each repo's CBOM next to the report (reuse the scan above).
+        (out / f"{name}.json").write_text(json.dumps(to_cbom(findings), indent=2))
         totals.update(counts)
-        n_code = section.count("| code |")
-        n_dep = section.count("| dependency |")
+        n_code = sum(1 for f in findings if f.origin == "code")
+        n_dep = sum(1 for f in findings if f.origin == "dependency")
+        tot_files += n_files
+        tot_code += n_code
+        tot_dep += n_dep
+        tot_time += elapsed
         summary_rows.append(
-            f"| {name} | {n_code} | {n_dep} | "
+            f"| {name} | {n_files} | {n_code} | {n_dep} | "
             f"{counts.get(Severity.CRITICAL, 0)} | {counts.get(Severity.MEDIUM, 0)} | "
             f"{counts.get(Severity.INFO, 0)} | {elapsed:.2f}s |"
         )
         sections.append(section)
 
+    summary_rows.append(
+        f"| **TOTAL** | **{tot_files}** | **{tot_code}** | **{tot_dep}** | "
+        f"**{totals.get(Severity.CRITICAL, 0)}** | **{totals.get(Severity.MEDIUM, 0)}** | "
+        f"**{totals.get(Severity.INFO, 0)}** | **{tot_time:.2f}s** |"
+    )
     report = "\n".join(header + ["## Summary", ""] + summary_rows + [""] + sections)
     report_path = out / "REPORT.md"
     report_path.write_text(report)
