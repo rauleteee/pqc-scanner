@@ -24,13 +24,19 @@ RSA/ECC usage we need to replace", "check our dependencies for quantum-broken al
 
 ## How to run
 
-1. **Ensure the tool is installed** (it's on PyPI):
+1. **Ensure the tool is installed** (it's on PyPI). Install only if missing, and
+   fall back gracefully on "externally-managed" (PEP 668) systems:
 
    ```bash
-   pqc-audit --version || pip install pqc-audit
+   pqc-audit --version 2>/dev/null \
+     || pipx install pqc-audit \
+     || python3 -m pip install --user pqc-audit \
+     || python3 -m pip install --user --break-system-packages pqc-audit
    ```
 
-   Prefer `pipx install pqc-audit` for an isolated CLI if `pipx` is available.
+   `pipx` is cleanest (isolated CLI); the `--user` fallbacks install into the user
+   site when `pipx` is absent or the system Python blocks direct installs. After a
+   `--user` install, make sure `~/.local/bin` is on your `PATH`.
 
 2. **Scan the target path** (a repo root, a subdirectory, or a single file):
 
