@@ -125,6 +125,23 @@ It exposes two tools:
   findings, each with its location and suggested post-quantum migration target.
 - **`generate_cbom(path)`** — the full CycloneDX 1.6 CBOM.
 
+## Skill (for Claude Code)
+
+A [Claude Skill](https://docs.claude.com/en/docs/claude-code/skills) wraps the same
+engine so an agent audits a repo the moment you *ask* — "is this repo post-quantum
+ready?" — without you remembering the command. It lives in [`skill/pqc-audit/`](skill/pqc-audit).
+
+Install it for your user:
+
+```bash
+mkdir -p ~/.claude/skills
+cp -r skill/pqc-audit ~/.claude/skills/
+```
+
+The skill installs `pqc-audit` on demand, runs it, and presents the verdict plus
+actionable migration targets. Like the CLI and MCP server, it holds no detection
+logic — it's a third thin surface over the one engine.
+
 ## Architecture
 
 The engine is a **library**; the interfaces are **thin wrappers**. All detection
