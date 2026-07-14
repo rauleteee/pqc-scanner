@@ -31,13 +31,13 @@ and a **suggested PQC migration target** (key exchange → ML-KEM, signatures �
 
 ## Installation
 
-Once published to PyPI (with [pipx](https://pipx.pypa.io) for an isolated CLI):
+With [pipx](https://pipx.pypa.io) for an isolated CLI:
 
 ```bash
-pipx install pqc-audit          # not published yet — see "from source" below
+pipx install pqc-audit
 ```
 
-From a local clone (works today):
+Or from a local clone:
 
 ```bash
 git clone https://github.com/rauleteee/pqc-scanner
