@@ -17,4 +17,4 @@ def test_cli_starts(capsys):
     exit_code = main([])
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "pqc-scanner" in captured.out
+    assert "pqc-audit" in captured.out

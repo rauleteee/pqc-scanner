@@ -15,7 +15,7 @@ def test_summarize_shape_and_verdict():
     findings = scan(EXAMPLES)
     report = summarize(str(EXAMPLES), findings)
 
-    assert report["tool"] == "pqc-scanner"
+    assert report["tool"] == "pqc-audit"
     assert report["path"] == str(EXAMPLES)
     assert set(report["summary"]) == {"CRITICAL", "MEDIUM", "INFO", "total"}
     assert report["summary"]["total"] == len(findings)

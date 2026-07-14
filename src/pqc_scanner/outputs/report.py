@@ -61,7 +61,7 @@ def summarize(path: str, findings: list[Finding]) -> dict:
         key=lambda f: (_SEVERITY_ORDER.index(f.severity), f.path, f.line),
     )
     return {
-        "tool": "pqc-scanner",
+        "tool": "pqc-audit",
         "version": __version__,
         "path": path,
         "summary": {

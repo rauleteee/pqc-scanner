@@ -98,9 +98,9 @@ def _component(representative: Finding, occurrences: list[Finding]) -> dict:
         },
         "evidence": {"occurrences": [_occurrence(f) for f in occurrences]},
         "properties": [
-            {"name": "pqc-scanner:classification", "value": representative.classification.value},
-            {"name": "pqc-scanner:severity", "value": representative.severity.value},
-            {"name": "pqc-scanner:migrationTarget", "value": representative.migration_target},
+            {"name": "pqc-audit:classification", "value": representative.classification.value},
+            {"name": "pqc-audit:severity", "value": representative.severity.value},
+            {"name": "pqc-audit:migrationTarget", "value": representative.migration_target},
         ],
     }
 
@@ -129,10 +129,10 @@ def _dependency_component(finding: Finding) -> dict:
         "bom-ref": f"dependency:{finding.library}:{finding.version or 'unknown'}",
         "name": finding.library,
         "properties": [
-            {"name": "pqc-scanner:classification", "value": finding.classification.value},
-            {"name": "pqc-scanner:severity", "value": finding.severity.value},
-            {"name": "pqc-scanner:migrationTarget", "value": finding.migration_target},
-            {"name": "pqc-scanner:provides", "value": finding.algorithm},
+            {"name": "pqc-audit:classification", "value": finding.classification.value},
+            {"name": "pqc-audit:severity", "value": finding.severity.value},
+            {"name": "pqc-audit:migrationTarget", "value": finding.migration_target},
+            {"name": "pqc-audit:provides", "value": finding.algorithm},
         ],
         "evidence": {"occurrences": [{"location": finding.path, "line": finding.line}]},
     }
@@ -190,7 +190,7 @@ def to_cbom(
                 "components": [
                     {
                         "type": "application",
-                        "name": "pqc-scanner",
+                        "name": "pqc-audit",
                         "version": __version__,
                     }
                 ]

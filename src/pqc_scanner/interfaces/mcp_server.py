@@ -4,8 +4,8 @@ Like the CLI, this holds no detection logic — it only adapts the core
 (`pqc_scanner.scan` / `to_cbom` / `summarize`) to the Model Context Protocol, so
 any MCP-capable agent (Claude, Cursor, …) can scan a local repository by talking.
 
-The MCP SDK is an optional dependency: install with ``pip install pqc-scanner[mcp]``.
-Run the server (stdio transport) with ``pqc-scanner-mcp`` or
+The MCP SDK is an optional dependency: install with ``pip install pqc-audit[mcp]``.
+Run the server (stdio transport) with ``pqc-audit-mcp`` or
 ``python -m pqc_scanner.interfaces.mcp_server``.
 """
 
@@ -17,7 +17,7 @@ from pqc_scanner import scan, to_cbom
 from pqc_scanner.outputs.report import summarize
 
 mcp = FastMCP(
-    "pqc-scanner",
+    "pqc-audit",
     instructions=(
         "Detects quantum-vulnerable cryptography (RSA, ECC, DH, …) in a local "
         "Python codebase and its dependency manifests, and suggests post-quantum "

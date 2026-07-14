@@ -34,7 +34,7 @@ and a **suggested PQC migration target** (key exchange → ML-KEM, signatures �
 Once published to PyPI (with [pipx](https://pipx.pypa.io) for an isolated CLI):
 
 ```bash
-pipx install pqc-scanner        # not published yet — see "from source" below
+pipx install pqc-audit          # not published yet — see "from source" below
 ```
 
 From a local clone (works today):
@@ -42,7 +42,7 @@ From a local clone (works today):
 ```bash
 git clone https://github.com/rauleteee/pqc-scanner
 cd pqc-scanner
-pipx install .                  # isolated, adds the `pqc-scanner` command
+pipx install .                  # isolated, adds the `pqc-audit` command
 ```
 
 Or for development:
@@ -55,15 +55,15 @@ pip install -e ".[dev]"
 ## Usage
 
 ```bash
-pqc-scanner [PATH]            # colored terminal summary (default PATH: .)
-pqc-scanner [PATH] --json     # CycloneDX 1.6 CBOM to stdout
+pqc-audit [PATH]              # colored terminal summary (default PATH: .)
+pqc-audit [PATH] --json       # CycloneDX 1.6 CBOM to stdout
 python -m pqc_scanner [PATH]  # equivalent, without installing
 ```
 
 Running it against the bundled `examples/` (Python source + a `requirements.txt`):
 
 ```text
-pqc-scanner 0.1.0  ·  scanned examples
+pqc-audit 0.1.0  ·  scanned examples
 CRITICAL: 5  MEDIUM: 1  INFO: 1
 ┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location              ┃ Migrate to             ┃
@@ -90,7 +90,7 @@ version). The scanner's assessment (severity, quantum classification, migration
 target) rides along as namespaced `properties`.
 
 ```bash
-pqc-scanner path/to/repo --json > cbom.json
+pqc-audit path/to/repo --json > cbom.json
 ```
 
 ## MCP server (for AI agents)
@@ -100,13 +100,13 @@ so any MCP-capable agent (Claude, Cursor, …) can scan a local repo conversatio
 
 ```bash
 pip install ".[mcp]"     # installs the optional MCP SDK
-pqc-scanner-mcp          # runs the server over stdio
+pqc-audit-mcp            # runs the server over stdio
 ```
 
 Register it with Claude Code:
 
 ```bash
-claude mcp add pqc-scanner -- pqc-scanner-mcp
+claude mcp add pqc-audit -- pqc-audit-mcp
 ```
 
 Or add it to a client config (e.g. Claude Desktop `claude_desktop_config.json`):
@@ -114,7 +114,7 @@ Or add it to a client config (e.g. Claude Desktop `claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
-    "pqc-scanner": { "command": "pqc-scanner-mcp" }
+    "pqc-audit": { "command": "pqc-audit-mcp" }
   }
 }
 ```

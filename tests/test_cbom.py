@@ -43,7 +43,7 @@ def test_envelope_fields():
     assert doc["bomFormat"] == "CycloneDX"
     assert doc["specVersion"] == "1.6"
     assert doc["serialNumber"] == FIXED_KWARGS["serial_number"]
-    assert doc["metadata"]["tools"]["components"][0]["name"] == "pqc-scanner"
+    assert doc["metadata"]["tools"]["components"][0]["name"] == "pqc-audit"
     assert doc["components"] == []
 
 
@@ -62,8 +62,8 @@ def test_component_shape_for_rsa():
     assert algo["parameterSetIdentifier"] == "2048"
     assert algo["nistQuantumSecurityLevel"] == 0
     props = {p["name"]: p["value"] for p in component["properties"]}
-    assert props["pqc-scanner:severity"] == "CRITICAL"
-    assert props["pqc-scanner:classification"] == "SHOR"
+    assert props["pqc-audit:severity"] == "CRITICAL"
+    assert props["pqc-audit:classification"] == "SHOR"
 
 
 def test_curve_maps_to_curve_field():
@@ -150,8 +150,8 @@ def test_dependency_becomes_library_component():
     occ = component["evidence"]["occurrences"][0]
     assert occ["location"] == "requirements.txt" and occ["line"] == 2
     props = {p["name"]: p["value"] for p in component["properties"]}
-    assert props["pqc-scanner:severity"] == "CRITICAL"
-    assert props["pqc-scanner:provides"] == "RSA/ECC/DH/Ed25519"
+    assert props["pqc-audit:severity"] == "CRITICAL"
+    assert props["pqc-audit:provides"] == "RSA/ECC/DH/Ed25519"
 
 
 def test_dependency_without_version_omits_version_and_pins_purl():

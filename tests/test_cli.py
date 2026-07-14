@@ -21,7 +21,7 @@ def test_summary_reports_counts_and_verdict(tmp_path, capsys):
     out = capsys.readouterr().out
 
     assert exit_code == 0
-    assert "pqc-scanner" in out
+    assert "pqc-audit" in out
     assert "CRITICAL: 1" in out
     assert "RSA-2048" in out
     assert "migration needed" in out
@@ -62,4 +62,4 @@ def test_version_flag_exits_zero(capsys):
     with pytest.raises(SystemExit) as excinfo:
         main(["--version"])
     assert excinfo.value.code == 0
-    assert "pqc-scanner" in capsys.readouterr().out
+    assert "pqc-audit" in capsys.readouterr().out

@@ -30,7 +30,7 @@ _SEVERITY_STYLE = {
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="pqc-scanner",
+        prog="pqc-audit",
         description="Scan a Python codebase for quantum-vulnerable cryptography.",
     )
     parser.add_argument(
@@ -47,7 +47,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version=f"pqc-scanner {__version__}",
+        version=f"pqc-audit {__version__}",
     )
     return parser
 
@@ -59,7 +59,7 @@ def _sort_key(finding: Finding) -> tuple[int, str, int]:
 def _print_summary(console: Console, path: str, findings: list[Finding]) -> None:
     counts = Counter(f.severity for f in findings)
 
-    console.print(f"[bold]pqc-scanner[/bold] {__version__}  ·  scanned [bold]{path}[/bold]")
+    console.print(f"[bold]pqc-audit[/bold] {__version__}  ·  scanned [bold]{path}[/bold]")
 
     header = "  ".join(
         f"[{_SEVERITY_STYLE[sev]}]{sev.value}: {counts.get(sev, 0)}[/]"

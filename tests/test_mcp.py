@@ -26,7 +26,7 @@ def test_tools_are_registered():
 
 def test_scan_repository_tool_returns_summary():
     result = mcp_server.scan_repository(str(EXAMPLES))
-    assert result["tool"] == "pqc-scanner"
+    assert result["tool"] == "pqc-audit"
     assert result["summary"]["CRITICAL"] >= 1
     assert result["verdict"].startswith("quantum-critical")
     assert result["findings"]
