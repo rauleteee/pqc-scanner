@@ -1,0 +1,50 @@
+name: Publish to PyPI
+
+# Publishes pqc-audit to PyPI when a GitHub Release is published.
+# Uses PyPI Trusted Publishing (OIDC) — no API tokens stored as secrets.
+#
+# One-time setup on PyPI (pypi.org -> project "pqc-audit" -> Settings ->
+# Publishing -> Add a trusted publisher):
+#   Owner:            rauleteee
+#   Repository:       pqc-scanner
+#   Workflow name:    publish.yml
+#   Environment name: pypi
+# And create a GitHub environment named "pypi" (repo Settings -> Environments).
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel + sdist
+        run: |
+          python -m pip install --upgrade build twine
+          python -m build
+          twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write  # required for Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
