@@ -10,7 +10,7 @@ dist/
 .venv/
 venv/
 env/
-
+.env
 # Test / tooling
 .pytest_cache/
 .ruff_cache/
