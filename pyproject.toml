@@ -9,7 +9,7 @@ description = "Scans local repositories for quantum-vulnerable cryptography and 
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Aaron Vives", email = "aaronvives@icloud.com" }]
+authors = [{ name = "rauleteee", email = "raul22520@gmail.com" }]
 keywords = ["pqc", "post-quantum", "cryptography", "security", "sast", "cbom"]
 classifiers = [
     "Development Status :: 3 - Alpha",
