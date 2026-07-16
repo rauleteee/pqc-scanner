@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from collections import Counter
 
-from pqc_scanner import __version__
-from pqc_scanner.findings import Finding, Severity
+from pqc_scanner.findings import Finding, Origin, Severity
+from pqc_scanner.version import __version__
 
 _SEVERITY_ORDER = [Severity.CRITICAL, Severity.MEDIUM, Severity.INFO]
 
@@ -30,7 +30,7 @@ def _verdict(counts: Counter) -> str:
 
 def _location(finding: Finding) -> str:
     """A single human-readable locator for the finding."""
-    if finding.origin == "dependency":
+    if finding.origin is Origin.DEPENDENCY:
         pkg = f"{finding.library} {finding.version}" if finding.version else finding.library
         return f"{pkg} ({finding.path}:{finding.line})"
     return f"{finding.path}:{finding.line}"
@@ -40,9 +40,9 @@ def _finding_row(finding: Finding) -> dict:
     return {
         "severity": finding.severity.value,
         "algorithm": finding.algorithm,
-        "usage": finding.usage,
+        "usage": finding.usage.value,
         "classification": finding.classification.value,
-        "origin": finding.origin,
+        "origin": finding.origin.value,
         "location": _location(finding),
         "library": finding.library,
         "migration_target": finding.migration_target,

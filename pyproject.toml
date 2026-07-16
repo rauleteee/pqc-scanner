@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pqc-audit"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Scans local repositories for quantum-vulnerable cryptography and produces an exposure report with post-quantum migration targets."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,6 +47,10 @@ Issues = "https://github.com/rauleteee/pqc-scanner/issues"
 [project.scripts]
 pqc-audit = "pqc_scanner.interfaces.cli:main"
 pqc-audit-mcp = "pqc_scanner.interfaces.mcp_server:main"
+
+[tool.setuptools.dynamic]
+# Single source of truth for the version: the dependency-free leaf module.
+version = { attr = "pqc_scanner.version.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

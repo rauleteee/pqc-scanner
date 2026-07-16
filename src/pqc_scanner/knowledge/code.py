@@ -1,6 +1,6 @@
-"""Rule base: crypto API -> algorithm -> classification -> migration target.
+"""Code rule base: crypto API -> algorithm -> classification -> migration target.
 
-This is the knowledge core of the scanner. A rule maps a recognized callable
+This is the knowledge core for the AST engine. A rule maps a recognized callable
 (identified by the last two components of its fully-qualified name, e.g.
 ``rsa.generate_private_key`` or ``algorithms.AES``) to what it means for a
 post-quantum migration.
@@ -15,7 +15,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pqc_scanner.findings import Classification, Severity
+from pqc_scanner.findings import Classification, Severity, Usage
+from pqc_scanner.knowledge.targets import (
+    AES256,
+    ALREADY_PQC,
+    ML_DSA,
+    ML_DSA_KEM_OKP,
+    ML_KEM,
+    ML_KEM_DSA,
+    ML_KEM_ECDH_DSA,
+    STRONG_HASH,
+)
 
 # Top-level import roots we treat as cryptographic. A call is only considered if
 # it resolves (through the file's imports) to one of these packages, so a local
@@ -43,16 +53,6 @@ CRYPTO_ROOTS: frozenset[str] = frozenset(
     }
 )
 
-# Common migration-target strings, shared across rules for consistency.
-_ML_KEM_DSA = "ML-KEM (key establishment) / ML-DSA (signatures)"
-_ML_KEM = "ML-KEM"
-_ML_DSA = "ML-DSA"
-_ML_KEM_ECDH_DSA = "ML-KEM (ECDH) / ML-DSA (ECDSA)"
-_ML_DSA_KEM_OKP = "ML-DSA (Ed25519/Ed448) / ML-KEM (X25519/X448)"
-_AES256 = "AES-256"
-_STRONG_HASH = "SHA-256 / SHA-3"
-_ALREADY_PQC = "already post-quantum — no migration needed"
-
 
 @dataclass(frozen=True)
 class Rule:
@@ -64,68 +64,70 @@ class Rule:
     """
 
     algorithm: str
-    usage: str
+    usage: Usage
     classification: Classification
     severity: Severity
     migration_target: str
     detail: str | None = None
 
 
-# Convenience builders keep the (large) table below readable.
+# Convenience builders keep the (large) table below readable. They also lift the
+# plain ``usage`` string into the typed `Usage` domain enum, so a typo in the
+# table fails fast at import time rather than silently producing a bad finding.
 def _shor(algorithm, usage, target, detail=None):
-    return Rule(algorithm, usage, Classification.SHOR, Severity.CRITICAL, target, detail)
+    return Rule(algorithm, Usage(usage), Classification.SHOR, Severity.CRITICAL, target, detail)
 
 
-def _grover(algorithm, usage, target=_AES256, detail=None):
-    return Rule(algorithm, usage, Classification.GROVER, Severity.MEDIUM, target, detail)
+def _grover(algorithm, usage, target=AES256, detail=None):
+    return Rule(algorithm, Usage(usage), Classification.GROVER, Severity.MEDIUM, target, detail)
 
 
 def _pqc(algorithm, usage):
-    return Rule(algorithm, usage, Classification.PQC, Severity.INFO, _ALREADY_PQC, "pqc_name")
+    return Rule(algorithm, Usage(usage), Classification.PQC, Severity.INFO, ALREADY_PQC, "pqc_name")
 
 
 # Keyed by the (module_leaf, attribute) pair of a call's qualified name.
 RULES: dict[tuple[str, str], Rule] = {
     # --- pyca/cryptography: asymmetric (broken by Shor) ---
-    ("rsa", "generate_private_key"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
-    ("dsa", "generate_private_key"): _shor("DSA", "signing", _ML_DSA, "key_size"),
-    ("ec", "generate_private_key"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
-    ("dh", "generate_parameters"): _shor("Diffie-Hellman", "key_exchange", _ML_KEM, "key_size"),
-    ("Ed25519PrivateKey", "generate"): _shor("Ed25519", "signing", _ML_DSA),
-    ("Ed448PrivateKey", "generate"): _shor("Ed448", "signing", _ML_DSA),
-    ("X25519PrivateKey", "generate"): _shor("X25519", "key_exchange", _ML_KEM),
-    ("X448PrivateKey", "generate"): _shor("X448", "key_exchange", _ML_KEM),
+    ("rsa", "generate_private_key"): _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
+    ("dsa", "generate_private_key"): _shor("DSA", "signing", ML_DSA, "key_size"),
+    ("ec", "generate_private_key"): _shor("ECC", "key_generation", ML_KEM_ECDH_DSA, "curve"),
+    ("dh", "generate_parameters"): _shor("Diffie-Hellman", "key_exchange", ML_KEM, "key_size"),
+    ("Ed25519PrivateKey", "generate"): _shor("Ed25519", "signing", ML_DSA),
+    ("Ed448PrivateKey", "generate"): _shor("Ed448", "signing", ML_DSA),
+    ("X25519PrivateKey", "generate"): _shor("X25519", "key_exchange", ML_KEM),
+    ("X448PrivateKey", "generate"): _shor("X448", "key_exchange", ML_KEM),
     # --- pyca/cryptography: symmetric & hashes (weakened by Grover / obsolete) ---
     ("algorithms", "AES"): _grover("AES", "encryption", detail="sym_key"),
     ("algorithms", "TripleDES"): _grover("3DES", "encryption"),
     ("algorithms", "Blowfish"): _grover("Blowfish", "encryption"),
     ("algorithms", "ARC4"): _grover("RC4", "encryption"),
-    ("hashes", "SHA1"): _grover("SHA-1", "hashing", _STRONG_HASH),
-    ("hashes", "MD5"): _grover("MD5", "hashing", _STRONG_HASH),
+    ("hashes", "SHA1"): _grover("SHA-1", "hashing", STRONG_HASH),
+    ("hashes", "MD5"): _grover("MD5", "hashing", STRONG_HASH),
     # --- stdlib hashlib: same weak hashes via the most common entry point ---
     # ``usedforsecurity=False`` (Python 3.9+) suppresses the finding (see engine).
-    ("hashlib", "md5"): _grover("MD5", "hashing", _STRONG_HASH, "weak_hash"),
-    ("hashlib", "sha1"): _grover("SHA-1", "hashing", _STRONG_HASH, "weak_hash"),
+    ("hashlib", "md5"): _grover("MD5", "hashing", STRONG_HASH, "weak_hash"),
+    ("hashlib", "sha1"): _grover("SHA-1", "hashing", STRONG_HASH, "weak_hash"),
     # --- pycryptodome (Crypto / Cryptodome) ---
-    ("RSA", "generate"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
-    ("DSA", "generate"): _shor("DSA", "signing", _ML_DSA, "key_size"),
-    ("ECC", "generate"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
+    ("RSA", "generate"): _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
+    ("DSA", "generate"): _shor("DSA", "signing", ML_DSA, "key_size"),
+    ("ECC", "generate"): _shor("ECC", "key_generation", ML_KEM_ECDH_DSA, "curve"),
     ("AES", "new"): _grover("AES", "encryption", detail="sym_key"),
     ("DES3", "new"): _grover("3DES", "encryption"),
     ("DES", "new"): _grover("DES", "encryption"),
     ("ARC4", "new"): _grover("RC4", "encryption"),
-    ("SHA1", "new"): _grover("SHA-1", "hashing", _STRONG_HASH),
-    ("MD5", "new"): _grover("MD5", "hashing", _STRONG_HASH),
+    ("SHA1", "new"): _grover("SHA-1", "hashing", STRONG_HASH),
+    ("MD5", "new"): _grover("MD5", "hashing", STRONG_HASH),
     # MD4 is fully broken (worse than MD5); still used for NTLM hashes (impacket).
-    ("MD4", "new"): _grover("MD4", "hashing", _STRONG_HASH),
+    ("MD4", "new"): _grover("MD4", "hashing", STRONG_HASH),
     # --- python-rsa (pure-Python RSA): the public entry point is ``rsa.newkeys`` ---
-    ("rsa", "newkeys"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
+    ("rsa", "newkeys"): _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
     # --- paramiko (SSH keys) ---
-    ("RSAKey", "generate"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
-    ("ECDSAKey", "generate"): _shor("ECDSA", "signing", _ML_DSA),
-    ("DSSKey", "generate"): _shor("DSA", "signing", _ML_DSA, "key_size"),
+    ("RSAKey", "generate"): _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
+    ("ECDSAKey", "generate"): _shor("ECDSA", "signing", ML_DSA),
+    ("DSSKey", "generate"): _shor("DSA", "signing", ML_DSA, "key_size"),
     # --- python-ecdsa ---
-    ("SigningKey", "from_secret_exponent"): _shor("ECDSA", "signing", _ML_DSA),
+    ("SigningKey", "from_secret_exponent"): _shor("ECDSA", "signing", ML_DSA),
     # --- liboqs (already post-quantum -> informative) ---
     ("oqs", "Signature"): _pqc("ML-DSA/SLH-DSA", "signing"),
     ("oqs", "KeyEncapsulation"): _pqc("ML-KEM", "key_exchange"),
@@ -138,35 +140,35 @@ RULES: dict[tuple[str, str], Rule] = {
 # consulted before the root-agnostic ``RULES`` table.
 ROOT_RULES: dict[tuple[str, str, str], Rule] = {
     # PyNaCl
-    ("nacl", "SigningKey", "generate"): _shor("Ed25519", "signing", _ML_DSA),
-    ("nacl", "PrivateKey", "generate"): _shor("Curve25519", "key_exchange", _ML_KEM),
+    ("nacl", "SigningKey", "generate"): _shor("Ed25519", "signing", ML_DSA),
+    ("nacl", "PrivateKey", "generate"): _shor("Curve25519", "key_exchange", ML_KEM),
     # python-ecdsa: SigningKey.generate(curve=...) is ECDSA, not Ed25519.
-    ("ecdsa", "SigningKey", "generate"): _shor("ECDSA", "signing", _ML_DSA),
+    ("ecdsa", "SigningKey", "generate"): _shor("ECDSA", "signing", ML_DSA),
     # authlib: its JWK classes expose their own key generation, wrapping
     # cryptography. A user app calls these directly, so cover them here (the
     # ``oct`` symmetric key class is intentionally omitted — not a Shor concern).
-    ("authlib", "RSAKey", "generate_key"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
-    ("authlib", "ECKey", "generate_key"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
-    ("authlib", "OKPKey", "generate_key"): _shor("OKP (Ed/X)", "key_generation", _ML_DSA_KEM_OKP),
+    ("authlib", "RSAKey", "generate_key"): _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
+    ("authlib", "ECKey", "generate_key"): _shor("ECC", "key_generation", ML_KEM_ECDH_DSA, "curve"),
+    ("authlib", "OKPKey", "generate_key"): _shor("OKP (Ed/X)", "key_generation", ML_DSA_KEM_OKP),
     # M2Crypto's native key generation are module-level functions whose names
     # (``gen_key``/``gen_params``) are M2Crypto-specific, so key them by root to
     # avoid ever colliding with the same class names in other libraries. Real use
     # includes Salt (``M2Crypto.RSA.gen_key(bits, ...)`` in salt/modules/x509.py).
-    ("M2Crypto", "RSA", "gen_key"): _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
-    ("M2Crypto", "DSA", "gen_params"): _shor("DSA", "signing", _ML_DSA, "key_size"),
-    ("M2Crypto", "EC", "gen_params"): _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
-    ("M2Crypto", "DH", "gen_params"): _shor("Diffie-Hellman", "key_exchange", _ML_KEM),
+    ("M2Crypto", "RSA", "gen_key"): _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
+    ("M2Crypto", "DSA", "gen_params"): _shor("DSA", "signing", ML_DSA, "key_size"),
+    ("M2Crypto", "EC", "gen_params"): _shor("ECC", "key_generation", ML_KEM_ECDH_DSA, "curve"),
+    ("M2Crypto", "DH", "gen_params"): _shor("Diffie-Hellman", "key_exchange", ML_KEM),
     # fastecdsa: module-level ECDSA key generation (``keys`` submodule).
-    ("fastecdsa", "keys", "gen_private_key"): _shor("ECDSA", "signing", _ML_DSA),
-    ("fastecdsa", "keys", "gen_keypair"): _shor("ECDSA", "signing", _ML_DSA),
+    ("fastecdsa", "keys", "gen_private_key"): _shor("ECDSA", "signing", ML_DSA),
+    ("fastecdsa", "keys", "gen_keypair"): _shor("ECDSA", "signing", ML_DSA),
     # libsodium wrappers (libnacl / pysodium): top-level module functions, so the
     # leaf equals the import root. ``sign`` -> Ed25519; ``box``/``kx`` -> Curve25519.
-    ("libnacl", "libnacl", "crypto_sign_keypair"): _shor("Ed25519", "signing", _ML_DSA),
-    ("libnacl", "libnacl", "crypto_box_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
-    ("libnacl", "libnacl", "crypto_kx_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
-    ("pysodium", "pysodium", "crypto_sign_keypair"): _shor("Ed25519", "signing", _ML_DSA),
-    ("pysodium", "pysodium", "crypto_box_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
-    ("pysodium", "pysodium", "crypto_kx_keypair"): _shor("Curve25519", "key_exchange", _ML_KEM),
+    ("libnacl", "libnacl", "crypto_sign_keypair"): _shor("Ed25519", "signing", ML_DSA),
+    ("libnacl", "libnacl", "crypto_box_keypair"): _shor("Curve25519", "key_exchange", ML_KEM),
+    ("libnacl", "libnacl", "crypto_kx_keypair"): _shor("Curve25519", "key_exchange", ML_KEM),
+    ("pysodium", "pysodium", "crypto_sign_keypair"): _shor("Ed25519", "signing", ML_DSA),
+    ("pysodium", "pysodium", "crypto_box_keypair"): _shor("Curve25519", "key_exchange", ML_KEM),
+    ("pysodium", "pysodium", "crypto_kx_keypair"): _shor("Curve25519", "key_exchange", ML_KEM),
 }
 
 
@@ -176,8 +178,8 @@ ROOT_RULES: dict[tuple[str, str, str], Rule] = {
 # file's imports to ``OpenSSL.crypto`` — a very specific, low-false-positive signal.
 # The engine keys this by the resolved constant (see ``_check_pyopenssl_pkey``).
 PKEY_TYPE_RULES: dict[str, Rule] = {
-    "OpenSSL.crypto.TYPE_RSA": _shor("RSA", "key_generation", _ML_KEM_DSA),
-    "OpenSSL.crypto.TYPE_DSA": _shor("DSA", "signing", _ML_DSA),
+    "OpenSSL.crypto.TYPE_RSA": _shor("RSA", "key_generation", ML_KEM_DSA),
+    "OpenSSL.crypto.TYPE_DSA": _shor("DSA", "signing", ML_DSA),
 }
 
 
@@ -209,9 +211,9 @@ class DispatchRule:
 # JOSE key-type table shared by jwcrypto and authlib. ``oct`` is deliberately
 # absent (symmetric key -> no Shor finding), and ``default=None`` suppresses it.
 _JOSE_KTY: dict[str, Rule] = {
-    "rsa": _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
-    "ec": _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
-    "okp": _shor("OKP (Ed/X)", "key_generation", _ML_DSA_KEM_OKP),
+    "rsa": _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
+    "ec": _shor("ECC", "key_generation", ML_KEM_ECDH_DSA, "curve"),
+    "okp": _shor("OKP (Ed/X)", "key_generation", ML_DSA_KEM_OKP),
 }
 
 # Keyed by (import root, leaf, attr), like ``ROOT_RULES``.
@@ -227,22 +229,22 @@ DISPATCH_RULES: dict[tuple[str, str, str], DispatchRule] = {
     ("asyncssh", "asyncssh", "generate_private_key"): DispatchRule(
         "alg_name",
         {
-            "ssh-rsa": _shor("RSA", "key_generation", _ML_KEM_DSA),
-            "ssh-dss": _shor("DSA", "signing", _ML_DSA),
-            "ssh-ed25519": _shor("Ed25519", "signing", _ML_DSA),
-            "ssh-ed448": _shor("Ed448", "signing", _ML_DSA),
+            "ssh-rsa": _shor("RSA", "key_generation", ML_KEM_DSA),
+            "ssh-dss": _shor("DSA", "signing", ML_DSA),
+            "ssh-ed25519": _shor("Ed25519", "signing", ML_DSA),
+            "ssh-ed448": _shor("Ed448", "signing", ML_DSA),
         },
-        default=_shor("SSH key (RSA/DSA/ECDSA/EdDSA)", "key_generation", _ML_KEM_DSA),
+        default=_shor("SSH key (RSA/DSA/ECDSA/EdDSA)", "key_generation", ML_KEM_DSA),
     ),
     # oscrypto: ``asymmetric.generate_pair("rsa"|"dsa"|"ec", ...)`` — all Shor-broken.
     ("oscrypto", "asymmetric", "generate_pair"): DispatchRule(
         "algorithm",
         {
-            "rsa": _shor("RSA", "key_generation", _ML_KEM_DSA, "key_size"),
-            "dsa": _shor("DSA", "signing", _ML_DSA, "key_size"),
-            "ec": _shor("ECC", "key_generation", _ML_KEM_ECDH_DSA, "curve"),
+            "rsa": _shor("RSA", "key_generation", ML_KEM_DSA, "key_size"),
+            "dsa": _shor("DSA", "signing", ML_DSA, "key_size"),
+            "ec": _shor("ECC", "key_generation", ML_KEM_ECDH_DSA, "curve"),
         },
-        default=_shor("RSA/DSA/ECC", "key_generation", _ML_KEM_ECDH_DSA),
+        default=_shor("RSA/DSA/ECC", "key_generation", ML_KEM_ECDH_DSA),
     ),
 }
 

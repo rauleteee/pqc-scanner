@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from pqc_scanner import scan, to_cbom
-from pqc_scanner.findings import Classification, Finding, Severity
+from pqc_scanner.findings import Classification, Finding, Origin, Severity, Usage
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema" / "bom-1.6.schema.json"
@@ -25,10 +25,10 @@ def _finding(**overrides) -> Finding:
         line=1,
         column=0,
         algorithm="RSA-2048",
-        usage="key_generation",
+        usage=Usage.KEY_GENERATION,
         classification=Classification.SHOR,
         severity=Severity.CRITICAL,
-        origin="code",
+        origin=Origin.CODE,
         library="cryptography",
         migration_target="ML-KEM / ML-DSA",
         symbol="rsa.generate_private_key",
@@ -67,7 +67,7 @@ def test_component_shape_for_rsa():
 
 
 def test_curve_maps_to_curve_field():
-    finding = _finding(algorithm="ECC-P-256", usage="key_generation", key_size=None, curve="P-256")
+    finding = _finding(algorithm="ECC-P-256", usage=Usage.KEY_GENERATION, key_size=None, curve="P-256")
     algo = to_cbom([finding], **FIXED_KWARGS)["components"][0]["cryptoProperties"][
         "algorithmProperties"
     ]
@@ -90,7 +90,7 @@ def test_distinct_assets_are_separate_components():
     rsa = _finding()
     aes = _finding(
         algorithm="AES",
-        usage="encryption",
+        usage=Usage.ENCRYPTION,
         classification=Classification.GROVER,
         severity=Severity.MEDIUM,
         library="cryptography",
@@ -104,7 +104,7 @@ def test_distinct_assets_are_separate_components():
 def test_pqc_key_exchange_primitive_is_kem():
     finding = _finding(
         algorithm="ML-KEM (Kyber512)",
-        usage="key_exchange",
+        usage=Usage.KEY_EXCHANGE,
         classification=Classification.PQC,
         severity=Severity.INFO,
         library="oqs",
@@ -127,10 +127,10 @@ def _dependency_finding(**overrides) -> Finding:
         line=2,
         column=0,
         algorithm="RSA/ECC/DH/Ed25519",
-        usage="dependency",
+        usage=Usage.DEPENDENCY,
         classification=Classification.SHOR,
         severity=Severity.CRITICAL,
-        origin="dependency",
+        origin=Origin.DEPENDENCY,
         library="cryptography",
         migration_target="ML-KEM / ML-DSA",
         symbol="cryptography==41.0.7",

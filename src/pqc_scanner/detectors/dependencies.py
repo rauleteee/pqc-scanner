@@ -17,68 +17,15 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 from pathlib import Path
 
-from pqc_scanner.findings import Classification, Finding, Severity
+from pqc_scanner.findings import Finding, Origin, Usage
+from pqc_scanner.knowledge import DEPENDENCY_RULES
 
 try:  # tomllib is standard library on Python 3.11+.
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - exercised only on 3.10.
     tomllib = None  # TOML manifests degrade to "no findings" rather than crash.
-
-# Usage tag for every dependency finding. Unlike a call site (key_generation,
-# signing, ...), a manifest only tells us a library is *present*.
-_USAGE = "dependency"
-
-# Migration guidance shared across the (small) rule table.
-_ASYM_TARGET = "ML-KEM (key establishment) / ML-DSA (signatures)"
-_PQC_OK = "already post-quantum — no migration needed"
-
-
-@dataclass(frozen=True)
-class DependencyRule:
-    """What the presence of a package means for a post-quantum migration.
-
-    ``provides`` is a short label of the quantum-relevant primitives the library
-    exposes (shown as the finding's algorithm), not proof they are used.
-    """
-
-    provides: str
-    classification: Classification
-    severity: Severity
-    migration_target: str
-
-
-def _shor(provides: str) -> DependencyRule:
-    return DependencyRule(provides, Classification.SHOR, Severity.CRITICAL, _ASYM_TARGET)
-
-
-def _pqc(provides: str) -> DependencyRule:
-    return DependencyRule(provides, Classification.PQC, Severity.INFO, _PQC_OK)
-
-
-# Keyed by PEP 503-normalized PyPI distribution name (see ``_normalize``). These
-# are the distributions behind the import roots the AST engine already knows.
-DEPENDENCY_RULES: dict[str, DependencyRule] = {
-    "cryptography": _shor("RSA/ECC/DH/Ed25519"),  # pyca/cryptography
-    "pyopenssl": _shor("RSA/ECC (OpenSSL)"),
-    "pycryptodome": _shor("RSA/DSA/ECC"),
-    "pycryptodomex": _shor("RSA/DSA/ECC"),
-    "pycrypto": _shor("RSA/DSA/ECC"),  # legacy, also unmaintained
-    "paramiko": _shor("RSA/ECDSA (SSH)"),
-    "pynacl": _shor("Ed25519/Curve25519"),
-    "ecdsa": _shor("ECDSA"),
-    "rsa": _shor("RSA"),  # python-rsa
-    # High-level JOSE / JWT libraries: wrap asymmetric crypto (RS*/ES*/EdDSA).
-    "authlib": _shor("JOSE/OAuth: RSA/EC/OKP"),
-    "python-jose": _shor("JOSE: RSA/EC"),
-    "jwcrypto": _shor("JOSE: RSA/EC/OKP"),
-    "pyjwt": _shor("JWT: RSA/EC signatures"),
-    "josepy": _shor("JOSE: RSA/EC"),
-    "oqs": _pqc("ML-KEM/ML-DSA"),  # liboqs-python
-    "liboqs-python": _pqc("ML-KEM/ML-DSA"),
-}
 
 
 def _normalize(name: str) -> str:
@@ -292,10 +239,10 @@ def analyze_manifest(path: str | Path) -> list[Finding]:
                 line=line,
                 column=0,
                 algorithm=rule.provides,
-                usage=_USAGE,
+                usage=Usage.DEPENDENCY,
                 classification=rule.classification,
                 severity=rule.severity,
-                origin="dependency",
+                origin=Origin.DEPENDENCY,
                 library=normalized,
                 migration_target=rule.migration_target,
                 symbol=normalized if version is None else f"{normalized}=={version}",

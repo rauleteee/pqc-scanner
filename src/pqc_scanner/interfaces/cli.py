@@ -81,7 +81,7 @@ def _print_summary(console: Console, path: str, findings: list[Finding]) -> None
         table.add_row(
             f"[{_SEVERITY_STYLE[finding.severity]}]{finding.severity.value}[/]",
             finding.algorithm,
-            finding.usage,
+            finding.usage.value,
             f"{finding.path}:{finding.line}",
             finding.migration_target,
         )

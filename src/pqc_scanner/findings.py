@@ -5,8 +5,10 @@ cryptographic primitive, with everything an interface needs to render an
 actionable report (location, algorithm, classification, severity and — the
 lead-generating field — the suggested post-quantum migration target).
 
-Enums are `str`-based so the model serializes cleanly to JSON in phase 4
-(schema alignment with CycloneDX CBOM lands there).
+The value types are `str`-based enums so the model both reads as a self-checking
+domain (a typo like ``Usage("keygeneration")`` fails fast) and serializes cleanly
+to JSON: a ``str`` enum's JSON form is its string value, matching the CycloneDX
+CBOM alignment (phase 4).
 """
 
 from __future__ import annotations
@@ -31,6 +33,28 @@ class Severity(str, Enum):
     INFO = "INFO"  # Already post-quantum.
 
 
+class Usage(str, Enum):
+    """What the detected primitive is used for at the call site.
+
+    ``DEPENDENCY`` is the usage of a manifest finding, where all we know is that a
+    crypto library is *present* — there is no call site telling us how it is used.
+    """
+
+    KEY_GENERATION = "key_generation"
+    SIGNING = "signing"
+    KEY_EXCHANGE = "key_exchange"
+    ENCRYPTION = "encryption"
+    HASHING = "hashing"
+    DEPENDENCY = "dependency"
+
+
+class Origin(str, Enum):
+    """Where a finding came from."""
+
+    CODE = "code"  # A resolved call site in Python source (AST engine).
+    DEPENDENCY = "dependency"  # A declared package in a manifest (dependency lookup).
+
+
 @dataclass(frozen=True)
 class Finding:
     """A single detected cryptographic usage."""
@@ -39,10 +63,10 @@ class Finding:
     line: int  # 1-based line number of the call.
     column: int  # 0-based column offset of the call.
     algorithm: str  # Detected algorithm, e.g. "RSA-2048", "ECC-P-256", "AES".
-    usage: str  # key_generation | signing | key_exchange | encryption | hashing.
+    usage: Usage  # What the primitive is used for (or DEPENDENCY for manifests).
     classification: Classification
     severity: Severity
-    origin: str  # "code" (with location) or "dependency" (package + version).
+    origin: Origin  # CODE (with location) or DEPENDENCY (package + version).
     library: str  # Detected import root / binding, e.g. "cryptography", "paramiko".
     # For code findings ``library`` is the import root; for dependency findings it
     # is the normalized PyPI distribution name and ``version`` its declared pin.
@@ -57,6 +81,8 @@ class Finding:
     def to_dict(self) -> dict:
         """Serialize to a plain dict (enums as their string values)."""
         data = asdict(self)
+        data["usage"] = self.usage.value
         data["classification"] = self.classification.value
         data["severity"] = self.severity.value
+        data["origin"] = self.origin.value
         return data

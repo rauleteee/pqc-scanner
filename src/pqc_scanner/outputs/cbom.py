@@ -20,18 +20,19 @@ import uuid
 from collections import OrderedDict
 from datetime import datetime, timezone
 
-from pqc_scanner.findings import Classification, Finding
+from pqc_scanner.findings import Classification, Finding, Origin, Usage
+from pqc_scanner.version import __version__
 
 SPEC_VERSION = "1.6"
 
 # usage -> CycloneDX cryptoFunctions. Every detected call either generates a key,
 # constructs a cipher for encryption, or builds a hash for digesting.
-_CRYPTO_FUNCTIONS: dict[str, list[str]] = {
-    "key_generation": ["keygen"],
-    "signing": ["keygen"],
-    "key_exchange": ["keygen"],
-    "encryption": ["encrypt"],
-    "hashing": ["digest"],
+_CRYPTO_FUNCTIONS: dict[Usage, list[str]] = {
+    Usage.KEY_GENERATION: ["keygen"],
+    Usage.SIGNING: ["keygen"],
+    Usage.KEY_EXCHANGE: ["keygen"],
+    Usage.ENCRYPTION: ["encrypt"],
+    Usage.HASHING: ["digest"],
 }
 
 
@@ -42,14 +43,14 @@ def _now_iso() -> str:
 def _primitive(finding: Finding) -> str:
     """Map a finding to a CycloneDX ``algorithmProperties.primitive`` value."""
     usage = finding.usage
-    if usage == "hashing":
+    if usage is Usage.HASHING:
         return "hash"
-    if usage == "encryption":
+    if usage is Usage.ENCRYPTION:
         base = finding.algorithm.split("-", 1)[0]
         return "stream-cipher" if base == "RC4" else "block-cipher"
-    if usage == "signing":
+    if usage is Usage.SIGNING:
         return "signature"
-    if usage == "key_exchange":
+    if usage is Usage.KEY_EXCHANGE:
         return "kem" if finding.classification is Classification.PQC else "key-agree"
     # key_generation: RSA is public-key encryption; bare EC keygen defaults to
     # signature (the dominant EC use). Migration guidance covers both roles.
@@ -75,7 +76,7 @@ def _algorithm_properties(finding: Finding) -> dict:
 
 
 def _bom_ref(finding: Finding) -> str:
-    return f"crypto:{finding.library}:{finding.algorithm}:{finding.usage}"
+    return f"crypto:{finding.library}:{finding.algorithm}:{finding.usage.value}"
 
 
 def _occurrence(finding: Finding) -> dict:
@@ -159,8 +160,8 @@ def _dependency_components(findings: list[Finding]) -> list[dict]:
 def _components(findings: list[Finding]) -> list[dict]:
     # Code findings become cryptographic-asset components; dependency findings
     # become library components. Code first, then dependencies.
-    code = [f for f in findings if f.origin != "dependency"]
-    deps = [f for f in findings if f.origin == "dependency"]
+    code = [f for f in findings if f.origin is not Origin.DEPENDENCY]
+    deps = [f for f in findings if f.origin is Origin.DEPENDENCY]
     return _crypto_components(code) + _dependency_components(deps)
 
 
@@ -177,8 +178,6 @@ def to_cbom(
         serial_number: Override the ``urn:uuid`` serial (for reproducible output).
         timestamp: Override the metadata timestamp (RFC 3339).
     """
-    from pqc_scanner import __version__
-
     return {
         "bomFormat": "CycloneDX",
         "specVersion": SPEC_VERSION,

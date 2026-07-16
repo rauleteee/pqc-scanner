@@ -16,8 +16,8 @@ import ast
 import re
 from pathlib import Path
 
-from pqc_scanner.findings import Finding
-from pqc_scanner.rules import (
+from pqc_scanner.findings import Finding, Origin
+from pqc_scanner.knowledge import (
     CRYPTO_ROOTS,
     PKEY_TYPE_RULES,
     DispatchRule,
@@ -298,7 +298,7 @@ class _CryptoVisitor(ast.NodeVisitor):
                 usage=rule.usage,
                 classification=rule.classification,
                 severity=rule.severity,
-                origin="code",
+                origin=Origin.CODE,
                 library=qualified.split(".")[0],
                 migration_target=rule.migration_target,
                 symbol=".".join(dotted),
@@ -361,7 +361,7 @@ class _CryptoVisitor(ast.NodeVisitor):
                 usage=rule.usage,
                 classification=rule.classification,
                 severity=rule.severity,
-                origin="code",
+                origin=Origin.CODE,
                 library="OpenSSL",
                 migration_target=rule.migration_target,
                 symbol=f"PKey.generate_key({arg_dotted[-1]})",
