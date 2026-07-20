@@ -17,6 +17,7 @@ from rich.table import Table
 
 from pqc_scanner import __version__, scan, to_cbom
 from pqc_scanner.findings import Finding, Severity
+from pqc_scanner.outputs.document import to_html, to_markdown
 
 # Display order and color for each severity. The header count built from these is
 # the shareable "at-a-glance" verdict, so it gets the strongest styling.
@@ -39,10 +40,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default=".",
         help="File or directory to scan (default: current directory).",
     )
-    parser.add_argument(
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument(
         "--json",
         action="store_true",
         help="Emit a CycloneDX CBOM to stdout instead of the colored summary.",
+    )
+    output.add_argument(
+        "--markdown",
+        action="store_true",
+        help="Emit a shareable Markdown report to stdout.",
+    )
+    output.add_argument(
+        "--html",
+        action="store_true",
+        help="Emit a self-contained HTML report to stdout.",
     )
     parser.add_argument(
         "--version",
@@ -109,6 +121,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         json.dump(to_cbom(findings), sys.stdout, indent=2)
         sys.stdout.write("\n")
+        return 0
+
+    if args.markdown:
+        sys.stdout.write(to_markdown(args.path, findings))
+        return 0
+
+    if args.html:
+        sys.stdout.write(to_html(args.path, findings))
         return 0
 
     _print_summary(Console(), args.path, findings)

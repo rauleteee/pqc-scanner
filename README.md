@@ -57,6 +57,8 @@ pip install -e ".[dev]"
 ```bash
 pqc-audit [PATH]              # colored terminal summary (default PATH: .)
 pqc-audit [PATH] --json       # CycloneDX 1.6 CBOM to stdout
+pqc-audit [PATH] --markdown   # shareable Markdown report to stdout
+pqc-audit [PATH] --html       # self-contained HTML report to stdout
 python -m pqc_scanner [PATH]  # equivalent, without installing
 ```
 
@@ -91,6 +93,18 @@ target) rides along as namespaced `properties`.
 
 ```bash
 pqc-audit path/to/repo --json > cbom.json
+```
+
+### Shareable report (Markdown / HTML)
+
+`--markdown` and `--html` render the same scan as a human-facing report — the
+verdict headline followed by the actionable table (location + migration target).
+The HTML is a single self-contained page (no external assets), light/dark aware,
+ready to open in a browser or attach to a report.
+
+```bash
+pqc-audit path/to/repo --markdown > pqc-report.md
+pqc-audit path/to/repo --html > pqc-report.html
 ```
 
 ## MCP server (for AI agents)

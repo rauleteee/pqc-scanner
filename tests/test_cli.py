@@ -50,6 +50,34 @@ def test_json_flag_emits_valid_cbom(tmp_path, capsys):
     assert doc["components"][0]["name"] == "RSA-2048"
 
 
+def test_markdown_flag_emits_report(tmp_path, capsys):
+    (tmp_path / "m.py").write_text(SAMPLE)
+
+    exit_code = main([str(tmp_path), "--markdown"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert "# Post-Quantum Exposure Report" in out
+    assert "| Severity | Algorithm |" in out
+    assert "RSA-2048" in out
+
+
+def test_html_flag_emits_self_contained_page(tmp_path, capsys):
+    (tmp_path / "m.py").write_text(SAMPLE)
+
+    exit_code = main([str(tmp_path), "--html"])
+    out = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert out.startswith("<!doctype html>")
+    assert "RSA-2048" in out
+
+
+def test_output_flags_are_mutually_exclusive(tmp_path):
+    with pytest.raises(SystemExit):
+        main([str(tmp_path), "--json", "--markdown"])
+
+
 def test_missing_path_returns_error_code(capsys):
     exit_code = main(["/definitely/not/here"])
     err = capsys.readouterr().err
