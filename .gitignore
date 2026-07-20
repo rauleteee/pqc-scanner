@@ -25,3 +25,4 @@ htmlcov/
 # Benchmark corpus (cloned repos) and generated results — reproducible, not vendored
 benchmarks/corpus/
 benchmarks/results/
+CLAUDE.md
