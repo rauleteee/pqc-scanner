@@ -9,4 +9,4 @@ version, so the number is declared in exactly one place.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
