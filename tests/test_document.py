@@ -16,8 +16,9 @@ def test_markdown_has_headline_and_actionable_table():
     # Shareable headline (marketing) driven by the worst severity present.
     assert "# Post-Quantum Exposure Report" in md
     assert "## Verdict: quantum-critical" in md
-    # A Markdown table with the actionable columns.
-    assert "| Severity | Algorithm | Usage | Location | Migrate to |" in md
+    # A Markdown table with the actionable columns (incl. the regulatory deadline).
+    assert "| Severity | Algorithm | Usage | Location | Migrate to | Deadline |" in md
+    assert "2030 → 2035" in md  # Shor findings carry the NIST deprecation deadline
     # Every finding is rendered as a row (+2 header rows, +1 headline count line).
     assert md.count("\n|") == len(findings) + 2
     # The scope note rides along as a blockquote.

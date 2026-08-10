@@ -64,6 +64,8 @@ def test_component_shape_for_rsa():
     props = {p["name"]: p["value"] for p in component["properties"]}
     assert props["pqc-audit:severity"] == "CRITICAL"
     assert props["pqc-audit:classification"] == "SHOR"
+    # A Shor finding carries the regulatory deadline (2030/2035) for the report.
+    assert "2030" in props["pqc-audit:compliance"]
 
 
 def test_curve_maps_to_curve_field():
@@ -152,6 +154,7 @@ def test_dependency_becomes_library_component():
     props = {p["name"]: p["value"] for p in component["properties"]}
     assert props["pqc-audit:severity"] == "CRITICAL"
     assert props["pqc-audit:provides"] == "RSA/ECC/DH/Ed25519"
+    assert "2030" in props["pqc-audit:compliance"]
 
 
 def test_dependency_without_version_omits_version_and_pins_purl():

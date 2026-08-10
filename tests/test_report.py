@@ -35,7 +35,10 @@ def test_summarize_rows_are_actionable_and_sorted():
         assert row["algorithm"]
         assert row["location"]
         assert row["migration_target"]
+        assert row["compliance"]  # regulatory deadline note per finding
         assert row["severity"] in {s.value for s in Severity}
+        if row["classification"] == "SHOR":
+            assert "2030" in row["compliance"]
     # Worst-first ordering: no MEDIUM/INFO appears before a CRITICAL.
     order = [r["severity"] for r in rows]
     assert order == sorted(order, key=["CRITICAL", "MEDIUM", "INFO"].index)

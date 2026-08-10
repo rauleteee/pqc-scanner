@@ -21,6 +21,7 @@ from collections import OrderedDict
 from datetime import datetime, timezone
 
 from pqc_scanner.findings import Classification, Finding, Origin, Usage
+from pqc_scanner.knowledge import compliance_for
 from pqc_scanner.version import __version__
 
 SPEC_VERSION = "1.6"
@@ -102,6 +103,7 @@ def _component(representative: Finding, occurrences: list[Finding]) -> dict:
             {"name": "pqc-audit:classification", "value": representative.classification.value},
             {"name": "pqc-audit:severity", "value": representative.severity.value},
             {"name": "pqc-audit:migrationTarget", "value": representative.migration_target},
+            {"name": "pqc-audit:compliance", "value": compliance_for(representative.classification)},
         ],
     }
 
@@ -133,6 +135,7 @@ def _dependency_component(finding: Finding) -> dict:
             {"name": "pqc-audit:classification", "value": finding.classification.value},
             {"name": "pqc-audit:severity", "value": finding.severity.value},
             {"name": "pqc-audit:migrationTarget", "value": finding.migration_target},
+            {"name": "pqc-audit:compliance", "value": compliance_for(finding.classification)},
             {"name": "pqc-audit:provides", "value": finding.algorithm},
         ],
         "evidence": {"occurrences": [{"location": finding.path, "line": finding.line}]},

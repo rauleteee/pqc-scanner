@@ -61,4 +61,11 @@ DEPENDENCY_RULES: dict[str, DependencyRule] = {
     "josepy": _shor("JOSE: RSA/EC"),
     "oqs": _pqc("ML-KEM/ML-DSA"),  # liboqs-python
     "liboqs-python": _pqc("ML-KEM/ML-DSA"),
+    # FHE libraries: lattice-based (RLWE) schemes (BFV/BGV/CKKS/TFHE), resistant
+    # to Shor -> reported as INFO (already post-quantum, correct use), not a defect.
+    "tenseal": _pqc("FHE (CKKS/BFV)"),
+    "pyfhel": _pqc("FHE (BFV/BGV/CKKS)"),
+    "openfhe": _pqc("FHE (BGV/BFV/CKKS/TFHE)"),
+    "concrete-ml": _pqc("FHE (TFHE)"),
+    "concrete-python": _pqc("FHE (TFHE)"),
 }

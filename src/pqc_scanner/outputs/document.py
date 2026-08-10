@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import html
 
-from pqc_scanner.findings import Finding
+from pqc_scanner.findings import Classification, Finding
+from pqc_scanner.knowledge import short_deadline_for
 from pqc_scanner.outputs.report import summarize
 
 # Worst-severity -> a semantic tone used to color the HTML verdict banner and to
@@ -29,7 +30,12 @@ _TONE_COLORS = {
     "clean": "#2e7d32",
 }
 
-_MD_HEADERS = ["Severity", "Algorithm", "Usage", "Location", "Migrate to"]
+_MD_HEADERS = ["Severity", "Algorithm", "Usage", "Location", "Migrate to", "Deadline"]
+
+
+def _deadline(row: dict) -> str:
+    """Compact deadline chip for a summary row (keyed by its classification)."""
+    return short_deadline_for(Classification(row["classification"]))
 
 
 def _tone(summary: dict) -> str:
@@ -77,6 +83,7 @@ def to_markdown(path: str, findings: list[Finding]) -> str:
                 row["usage"],
                 f"`{row['location']}`",
                 row["migration_target"],
+                _deadline(row),
             ]
             lines.append("| " + " | ".join(_md_escape(c) for c in cells) + " |")
         lines.append("")
@@ -136,6 +143,7 @@ td code { font-size: .82rem; word-break: break-all; }
 .badge.critical { color: var(--critical); }
 .badge.medium { color: var(--medium); }
 .badge.info { color: var(--info); }
+.deadline { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
 .clean { padding: 1.25rem; text-align: center; color: var(--muted); }
 .note { margin-top: 1.75rem; color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); padding-top: 1rem; }
 """.strip()
@@ -184,6 +192,8 @@ def to_html(path: str, findings: list[Finding]) -> str:
                 f'<td>{e(row["usage"])}</td>'
                 f'<td><code>{e(row["location"])}</code></td>'
                 f'<td>{e(row["migration_target"])}</td>'
+                f'<td class="deadline" title="{e(row["compliance"])}">'
+                f'{e(_deadline(row))}</td>'
                 "</tr>"
             )
         body = (

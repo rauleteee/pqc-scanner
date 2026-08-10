@@ -26,8 +26,15 @@ Two static detectors feed one report:
   says a library is present, not that a primitive is used), but it seeds the CBOM.
 
 Each finding carries: location, algorithm, usage context, quantum classification
-(Shor / Grover / already-PQC), severity, origin (code location | package+version)
-and a **suggested PQC migration target** (key exchange → ML-KEM, signatures → ML-DSA).
+(Shor / Grover / already-PQC), severity, origin (code location | package+version),
+a **suggested PQC migration target** (key exchange → ML-KEM, signatures → ML-DSA)
+and a **regulatory deadline** (NIST IR 8547 / CNSA 2.0: deprecated after 2030,
+disallowed after 2035).
+
+Already-post-quantum cryptography is reported as `INFO` (correct use, nothing to
+migrate), not as a gap — this includes the NIST PQC standards (ML-KEM/ML-DSA/
+SLH-DSA) and **fully homomorphic encryption** libraries (TenSEAL, Pyfhel, OpenFHE,
+Concrete), whose lattice-based schemes are Shor-resistant.
 
 ## Installation
 
@@ -65,23 +72,25 @@ python -m pqc_scanner [PATH]  # equivalent, without installing
 Running it against the bundled `examples/` (Python source + a `requirements.txt`):
 
 ```text
-pqc-audit 0.1.0  ·  scanned examples
+pqc-audit 0.2.0  ·  scanned examples
 CRITICAL: 5  MEDIUM: 1  INFO: 1
-┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location              ┃ Migrate to             ┃
-┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ CRITICAL │ RSA/ECC/DH/Ed25519 │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │
-│ CRITICAL │ RSA/ECC (OpenSSL)  │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │
-│ CRITICAL │ RSA/ECDSA (SSH)    │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │
-│ CRITICAL │ RSA-2048           │ key_generation │ examples/vulnerable_… │ ML-KEM / ML-DSA        │
-│ CRITICAL │ ECC-P-256          │ key_generation │ examples/vulnerable_… │ ML-KEM (ECDH) / ML-DSA │
-│ MEDIUM   │ AES                │ encryption     │ examples/vulnerable_… │ AES-256                │
-│ INFO     │ ML-KEM/ML-DSA      │ dependency     │ examples/requirements │ already post-quantum   │
-└──────────┴────────────────────┴────────────────┴───────────────────────┴────────────────────────┘
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location              ┃ Migrate to             ┃ Deadline    ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ CRITICAL │ RSA/ECC/DH/Ed25519 │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ RSA/ECC (OpenSSL)  │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ RSA/ECDSA (SSH)    │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ RSA-2048           │ key_generation │ examples/vulnerable_… │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ ECC-P-256          │ key_generation │ examples/vulnerable_… │ ML-KEM (ECDH) / ML-DSA │ 2030 → 2035 │
+│ MEDIUM   │ AES                │ encryption     │ examples/vulnerable_… │ AES-256                │ —           │
+│ INFO     │ ML-KEM/ML-DSA      │ dependency     │ examples/requirements │ already post-quantum   │ compliant   │
+└──────────┴────────────────────┴────────────────┴───────────────────────┴────────────────────────┴─────────────┘
 Verdict: quantum-critical cryptography in use — migration needed.
 ```
 
 The header count (`CRITICAL: 5  MEDIUM: 1  INFO: 1`) is the at-a-glance verdict.
+The **Deadline** column maps each finding to its regulatory timeline (NIST IR 8547 /
+CNSA 2.0: quantum-critical crypto deprecated after 2030, disallowed after 2035).
 
 ### JSON / CBOM output
 

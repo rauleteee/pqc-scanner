@@ -532,3 +532,25 @@ def test_pqc_library_reported_as_info(tmp_path):
     assert finding.classification is Classification.PQC
     assert finding.severity is Severity.INFO
     assert finding.algorithm == "ML-KEM (Kyber512)"
+
+
+def test_fhe_libraries_reported_as_info(tmp_path):
+    # FHE schemes are lattice-based (Shor-resistant) -> INFO, not a defect.
+    src = tmp_path / "m.py"
+    src.write_text(
+        "import tenseal as ts\n"
+        "from Pyfhel import Pyfhel\n"
+        "from openfhe import GenCryptoContext\n"
+        "ts.context(ts.SCHEME_TYPE.CKKS)\n"
+        "Pyfhel()\n"
+        "GenCryptoContext(params)\n"
+    )
+    findings = analyze_file(src)
+    assert {f.algorithm for f in findings} == {
+        "FHE (TenSEAL)",
+        "FHE (Pyfhel)",
+        "FHE (OpenFHE)",
+    }
+    for finding in findings:
+        assert finding.classification is Classification.PQC
+        assert finding.severity is Severity.INFO

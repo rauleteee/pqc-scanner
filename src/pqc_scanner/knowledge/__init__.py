@@ -20,9 +20,19 @@ from pqc_scanner.knowledge.code import (
     lookup_dispatch,
     lookup_rule,
 )
+from pqc_scanner.knowledge.compliance import (
+    COMPLIANCE_BY_CLASSIFICATION,
+    SHORT_DEADLINE_BY_CLASSIFICATION,
+    compliance_for,
+    short_deadline_for,
+)
 from pqc_scanner.knowledge.dependencies import DEPENDENCY_RULES, DependencyRule
 
 __all__ = [
+    "COMPLIANCE_BY_CLASSIFICATION",
+    "SHORT_DEADLINE_BY_CLASSIFICATION",
+    "compliance_for",
+    "short_deadline_for",
     "CRYPTO_ROOTS",
     "DISPATCH_RULES",
     "PKEY_TYPE_RULES",

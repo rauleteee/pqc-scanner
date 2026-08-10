@@ -83,6 +83,16 @@ def test_requirements_reports_pqc_library_as_info(tmp_path):
     assert finding.severity is Severity.INFO
 
 
+def test_requirements_reports_fhe_library_as_info(tmp_path):
+    manifest = tmp_path / "requirements.txt"
+    manifest.write_text("tenseal==0.3.15\nPyfhel>=3.4\n")
+    findings = analyze_manifest(manifest)
+    assert {f.library for f in findings} == {"tenseal", "pyfhel"}
+    for finding in findings:
+        assert finding.classification is Classification.PQC
+        assert finding.severity is Severity.INFO
+
+
 def test_duplicate_package_reported_once(tmp_path):
     manifest = tmp_path / "requirements.txt"
     manifest.write_text("cryptography==1.0\ncryptography==2.0\n")

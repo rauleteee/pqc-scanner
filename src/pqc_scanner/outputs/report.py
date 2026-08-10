@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections import Counter
 
 from pqc_scanner.findings import Finding, Origin, Severity
+from pqc_scanner.knowledge import compliance_for
 from pqc_scanner.version import __version__
 
 _SEVERITY_ORDER = [Severity.CRITICAL, Severity.MEDIUM, Severity.INFO]
@@ -46,6 +47,7 @@ def _finding_row(finding: Finding) -> dict:
         "location": _location(finding),
         "library": finding.library,
         "migration_target": finding.migration_target,
+        "compliance": compliance_for(finding.classification),
     }
 
 

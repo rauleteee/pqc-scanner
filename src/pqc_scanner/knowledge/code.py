@@ -45,6 +45,9 @@ CRYPTO_ROOTS: frozenset[str] = frozenset(
         "libnacl",  # libsodium wrapper (Ed25519 / Curve25519 keypairs)
         "pysodium",  # libsodium wrapper (Ed25519 / Curve25519 keypairs)
         "oqs",  # liboqs-python (already PQC)
+        "tenseal",  # FHE (CKKS/BFV) — lattice-based, already PQC
+        "Pyfhel",  # FHE (BFV/BGV/CKKS) — lattice-based, already PQC
+        "openfhe",  # FHE (BGV/BFV/CKKS/TFHE) — lattice-based, already PQC
         "authlib",  # high-level JOSE/JWT: its own JWK key-generation API
         "jwcrypto",  # JOSE: JWK.generate(kty=...) string dispatcher
         "asyncssh",  # SSH: generate_private_key(alg) string dispatcher
@@ -84,6 +87,14 @@ def _grover(algorithm, usage, target=AES256, detail=None):
 
 def _pqc(algorithm, usage):
     return Rule(algorithm, Usage(usage), Classification.PQC, Severity.INFO, ALREADY_PQC, "pqc_name")
+
+
+def _fhe(algorithm):
+    # Fully homomorphic encryption schemes (BFV/BGV/CKKS/TFHE) are lattice-based
+    # (RLWE) and considered resistant to Shor -> reported as INFO (correct use,
+    # nothing to migrate), like ML-KEM/ML-DSA. No arg extractor: the scheme rides
+    # in an enum/params object, not a string literal, so there is nothing to read.
+    return Rule(algorithm, Usage.ENCRYPTION, Classification.PQC, Severity.INFO, ALREADY_PQC)
 
 
 # Keyed by the (module_leaf, attribute) pair of a call's qualified name.
@@ -131,6 +142,13 @@ RULES: dict[tuple[str, str], Rule] = {
     # --- liboqs (already post-quantum -> informative) ---
     ("oqs", "Signature"): _pqc("ML-DSA/SLH-DSA", "signing"),
     ("oqs", "KeyEncapsulation"): _pqc("ML-KEM", "key_exchange"),
+    # --- FHE libraries (lattice-based, already post-quantum -> informative) ---
+    # Each library's context/instance constructor is the clearest single signal
+    # that homomorphic encryption is in use (``ts.context(...)``, ``Pyfhel()``,
+    # ``GenCryptoContext(...)``). Reported as INFO to reinforce "this is fine".
+    ("tenseal", "context"): _fhe("FHE (TenSEAL)"),
+    ("Pyfhel", "Pyfhel"): _fhe("FHE (Pyfhel)"),
+    ("openfhe", "GenCryptoContext"): _fhe("FHE (OpenFHE)"),
 }
 
 

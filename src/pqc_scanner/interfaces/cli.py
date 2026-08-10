@@ -17,6 +17,7 @@ from rich.table import Table
 
 from pqc_scanner import __version__, scan, to_cbom
 from pqc_scanner.findings import Finding, Severity
+from pqc_scanner.knowledge import short_deadline_for
 from pqc_scanner.outputs.document import to_html, to_markdown
 
 # Display order and color for each severity. The header count built from these is
@@ -89,6 +90,7 @@ def _print_summary(console: Console, path: str, findings: list[Finding]) -> None
     table.add_column("Usage")
     table.add_column("Location")
     table.add_column("Migrate to")
+    table.add_column("Deadline")
     for finding in sorted(findings, key=_sort_key):
         table.add_row(
             f"[{_SEVERITY_STYLE[finding.severity]}]{finding.severity.value}[/]",
@@ -96,6 +98,7 @@ def _print_summary(console: Console, path: str, findings: list[Finding]) -> None
             finding.usage.value,
             f"{finding.path}:{finding.line}",
             finding.migration_target,
+            short_deadline_for(finding.classification),
         )
     console.print(table)
 
