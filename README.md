@@ -1,5 +1,9 @@
 # PQC Scanner
 
+[![Security](https://github.com/rauleteee/pqc-scanner/actions/workflows/security.yml/badge.svg)](https://github.com/rauleteee/pqc-scanner/actions/workflows/security.yml)
+[![CodeQL](https://github.com/rauleteee/pqc-scanner/actions/workflows/codeql.yml/badge.svg)](https://github.com/rauleteee/pqc-scanner/actions/workflows/codeql.yml)
+[![PyPI](https://img.shields.io/pypi/v/pqc-audit)](https://pypi.org/project/pqc-audit/)
+
 Open-source CLI that scans a local repository for cryptography vulnerable to
 quantum computing (RSA, ECC, ...) and produces an exposure report with concrete
 post-quantum migration targets.
@@ -183,6 +187,24 @@ The CLI and the MCP server are just thin faces of the same engine (a skill is ne
 ```bash
 pytest
 ```
+
+## Security
+
+CI runs a set of security pipelines (GitHub Actions) on every push and pull
+request, plus a weekly schedule:
+
+- **CodeQL** (`codeql.yml`) — static security analysis (`security-extended`
+  query suite), results in the repository's Security tab.
+- **bandit** (`security.yml`) — Python SAST over `src/`, medium severity and above.
+- **pip-audit** (`security.yml`) — flags known CVEs in the installed dependencies.
+- **CycloneDX SBOM** (`security.yml`) — a dependency SBOM is generated and
+  uploaded as a build artifact.
+- **gitleaks** (`security.yml`) — secret scan across the full git history.
+- **Dependency review** (`dependency-review.yml`) — blocks high-severity or
+  disallowed-license dependencies introduced in a pull request.
+
+Release publishing to PyPI uses **OIDC Trusted Publishing** (`publish.yml`), so no
+long-lived API token is stored in the repository.
 
 ## v1 scope
 
