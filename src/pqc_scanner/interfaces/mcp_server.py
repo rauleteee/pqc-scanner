@@ -19,10 +19,13 @@ from pqc_scanner.outputs.report import summarize
 mcp = FastMCP(
     "pqc-audit",
     instructions=(
-        "Detects quantum-vulnerable cryptography (RSA, ECC, DH, …) in a local "
-        "Python codebase and its dependency manifests, and suggests post-quantum "
-        "migration targets. Use scan_repository for an at-a-glance verdict plus "
-        "actionable findings, or generate_cbom for a full CycloneDX inventory."
+        "Detects quantum-vulnerable cryptography (RSA, ECC, DH, Ed25519, …) across "
+        "a local repository and suggests post-quantum migration targets. Four static "
+        "detectors feed one report: Python source (AST), dependency manifests, "
+        "config/infra files (Dockerfiles, SSH configs, PEM/key material, key-gen "
+        "commands), and encrypted artifacts (OpenPGP/age headers, read without "
+        "decrypting). Use scan_repository for an at-a-glance verdict plus actionable "
+        "findings, or generate_cbom for a full CycloneDX inventory."
     ),
 )
 
@@ -30,6 +33,11 @@ mcp = FastMCP(
 @mcp.tool()
 def scan_repository(path: str = ".") -> dict:
     """Scan a local file or directory for quantum-vulnerable cryptography.
+
+    Runs four static detectors over the path: Python source (AST), dependency
+    manifests, config/infra files (Dockerfiles, SSH configs, PEM/key material,
+    key-gen commands), and encrypted artifacts (OpenPGP/age headers, read without
+    decrypting).
 
     Returns a summary: counts by severity (CRITICAL = broken by Shor, MEDIUM =
     weakened by Grover, INFO = already post-quantum), a one-line verdict, and the
