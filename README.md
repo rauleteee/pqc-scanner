@@ -90,7 +90,7 @@ python -m pqc_scanner [PATH]  # equivalent, without installing
 Running it against the bundled `examples/` (Python source + a `requirements.txt`):
 
 ```text
-pqc-audit 0.4.0  ·  scanned examples
+pqc-audit 0.4.1  ·  scanned examples
 CRITICAL: 9  MEDIUM: 1  INFO: 1
 ┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
 ┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location               ┃ Migrate to             ┃ Deadline    ┃
