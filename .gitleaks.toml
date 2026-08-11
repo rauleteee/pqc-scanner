@@ -15,8 +15,11 @@ title = "pqc-scanner gitleaks config"
 useDefault = true
 
 [allowlist]
-description = "PEM header strings here are detection patterns / test fixtures, not secrets."
+description = "PEM/PGP armor strings here are detection patterns / test fixtures, not secrets."
 paths = [
   '''src/pqc_scanner/knowledge/config\.py$''',
   '''tests/test_config\.py$''',
+  # test_artifacts.py embeds a real GnuPG ASCII-armored *encrypted message* (public
+  # ciphertext, no key material) as an OpenPGP parser regression vector.
+  '''tests/test_artifacts\.py$''',
 ]

@@ -6,19 +6,24 @@ detectors, aggregating their `Finding` lists into one result:
 * the AST engine (`pqc_scanner.ast_engine`) on every Python source file — the
   high-signal path;
 * the dependency complement (`pqc_scanner.dependencies`) on every recognized
-  manifest — a low-signal lookup that seeds the CBOM; and
+  manifest — a low-signal lookup that seeds the CBOM;
 * the config detector (`pqc_scanner.config`) on config/infra files — anchored
-  patterns for crypto declared as strings (SSH keys, PEM material, key-gen commands).
+  patterns for crypto declared as strings (SSH keys, PEM material, key-gen commands);
+  and
+* the artifact detector (`pqc_scanner.artifacts`) on encrypted files — reads the
+  asymmetric key wrapping from format headers (OpenPGP, age) without decrypting.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+from pqc_scanner.detectors.artifacts import analyze_artifact
 from pqc_scanner.detectors.ast_engine import analyze_file
 from pqc_scanner.detectors.config import analyze_config
 from pqc_scanner.detectors.dependencies import analyze_manifest
 from pqc_scanner.detectors.discovery import (
+    iter_artifact_files,
     iter_config_files,
     iter_manifest_files,
     iter_python_files,
@@ -45,4 +50,6 @@ def scan(path: str | Path) -> list[Finding]:
         findings.extend(analyze_manifest(manifest))
     for config_file in iter_config_files(path):
         findings.extend(analyze_config(config_file))
+    for artifact_file in iter_artifact_files(path):
+        findings.extend(analyze_artifact(artifact_file))
     return findings

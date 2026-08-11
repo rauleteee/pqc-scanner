@@ -17,7 +17,7 @@ post-quantum migration targets.
 
 ## What it detects
 
-Three static detectors feed one report:
+Four static detectors feed one report:
 
 - **Source code (AST) — high signal.** Parses Python with the standard `ast`
   module and reports *real uses* of vulnerable primitives (a crypto import **plus**
@@ -35,6 +35,13 @@ Three static detectors feed one report:
   key-generation commands (`openssl genrsa`, `ssh-keygen -t ecdsa`). Every pattern
   is anchored on real structure (a PEM header, the `AAAA` SSH wire format, a
   command's algorithm flag), so a stray mention of "RSA" in prose is never a hit.
+- **Encrypted artifacts (data at rest) — header inspection.** Reads the format
+  headers of encrypted files **without decrypting or asking for keys** — OpenPGP
+  (`.gpg`/`.pgp`/`.asc`) and age (`.age`) — to name the *asymmetric key wrapping*
+  that protects them (RSA/ECDH/X25519/…). This is the other half of "harvest now,
+  decrypt later": files recorded today, broken later. The nuance that keeps it
+  quiet: Shor breaks the asymmetric layer, so a passphrase/AES-256 file is **not**
+  flagged — only the quantum-vulnerable recipient/key-transport is.
 
 Each finding carries: location, algorithm, usage context, quantum classification
 (Shor / Grover / already-PQC), severity, origin (code location | package+version),
@@ -83,14 +90,15 @@ python -m pqc_scanner [PATH]  # equivalent, without installing
 Running it against the bundled `examples/` (Python source + a `requirements.txt`):
 
 ```text
-pqc-audit 0.3.0  ·  scanned examples
-CRITICAL: 8  MEDIUM: 1  INFO: 1
+pqc-audit 0.4.0  ·  scanned examples
+CRITICAL: 9  MEDIUM: 1  INFO: 1
 ┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
 ┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location               ┃ Migrate to             ┃ Deadline    ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
 │ CRITICAL │ RSA-2048           │ configuration  │ infra/Dockerfile:4     │ ML-KEM / ML-DSA        │ 2030 → 2035 │
 │ CRITICAL │ ECDSA              │ configuration  │ infra/Dockerfile:5     │ ML-DSA                 │ 2030 → 2035 │
 │ CRITICAL │ RSA                │ configuration  │ infra/authorized_keys… │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ X25519             │ data_at_rest   │ infra/secret.age:1     │ ML-KEM                 │ 2030 → 2035 │
 │ CRITICAL │ RSA/ECC/DH/Ed25519 │ dependency     │ examples/requirements  │ ML-KEM / ML-DSA        │ 2030 → 2035 │
 │ CRITICAL │ RSA/ECC (OpenSSL)  │ dependency     │ examples/requirements  │ ML-KEM / ML-DSA        │ 2030 → 2035 │
 │ CRITICAL │ RSA/ECDSA (SSH)    │ dependency     │ examples/requirements  │ ML-KEM / ML-DSA        │ 2030 → 2035 │
@@ -221,7 +229,7 @@ long-lived API token is stored in the repository.
 - **Python** ecosystem only (for source code; the config detector is
   language-agnostic since it matches file patterns, not Python calls).
 - **Static** analysis of local files: source code (AST) + dependency manifests +
-  config/infra files.
+  config/infra files + encrypted-artifact headers (no decryption).
 - Outputs: colored terminal summary + JSON aligned with CycloneDX CBOM.
 
 **Known limit (by design):** the AST engine detects direct, statically-resolvable

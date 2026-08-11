@@ -49,6 +49,8 @@ class Usage(str, Enum):
     CONFIGURATION = "configuration"  # Declared in a config/infra file (key material
     #                                  or a key-gen command); exact operation not
     #                                  statically resolvable, like DEPENDENCY.
+    DATA_AT_REST = "data_at_rest"  # Found by header/metadata inspection of an
+    #                                encrypted artifact or key file (no decryption).
 
 
 class Origin(str, Enum):
@@ -57,6 +59,7 @@ class Origin(str, Enum):
     CODE = "code"  # A resolved call site in Python source (AST engine).
     DEPENDENCY = "dependency"  # A declared package in a manifest (dependency lookup).
     CONFIG = "config"  # A pattern matched in a config/infra file (config detector).
+    ARTIFACT = "artifact"  # A header/metadata match in an encrypted artifact or key file.
 
 
 @dataclass(frozen=True)

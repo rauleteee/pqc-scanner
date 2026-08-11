@@ -93,6 +93,11 @@ def _is_config_file(name: str) -> bool:
     return Path(name).suffix in CONFIG_SUFFIXES
 
 
+# Encrypted-artifact / key-material file extensions the data-at-rest detector reads
+# by header/metadata (no decryption). OpenPGP (.gpg/.pgp/.asc) and age (.age).
+ARTIFACT_SUFFIXES: frozenset[str] = frozenset({".gpg", ".pgp", ".asc", ".age"})
+
+
 def iter_python_files(
     root: str | Path,
     excluded_dirs: frozenset[str] = DEFAULT_EXCLUDED_DIRS,
@@ -199,4 +204,32 @@ def iter_config_files(
         dirnames[:] = sorted(d for d in dirnames if d not in excluded_dirs)
         for filename in sorted(filenames):
             if _is_config_file(filename):
+                yield Path(dirpath) / filename
+
+
+def iter_artifact_files(
+    root: str | Path,
+    excluded_dirs: frozenset[str] = DEFAULT_EXCLUDED_DIRS,
+) -> Iterator[Path]:
+    """Yield the encrypted-artifact / key files under ``root`` (by extension).
+
+    Mirrors the other iterators; selects OpenPGP and age files for the data-at-rest
+    detector, sharing the same traversal and pruning rules.
+
+    Raises:
+        FileNotFoundError: If ``root`` does not exist.
+    """
+    root = Path(root)
+    if not root.exists():
+        raise FileNotFoundError(f"Path does not exist: {root}")
+
+    if root.is_file():
+        if root.suffix.lower() in ARTIFACT_SUFFIXES:
+            yield root
+        return
+
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = sorted(d for d in dirnames if d not in excluded_dirs)
+        for filename in sorted(filenames):
+            if Path(filename).suffix.lower() in ARTIFACT_SUFFIXES:
                 yield Path(dirpath) / filename

@@ -26,6 +26,7 @@ from pqc_scanner.knowledge.compliance import (
     compliance_for,
     short_deadline_for,
 )
+from pqc_scanner.knowledge.artifacts import AGE_RECIPIENTS, PGP_PUBKEY_ALGORITHMS
 from pqc_scanner.knowledge.config import CONFIG_RULES, RSA_KEY_SIZES, ConfigRule
 from pqc_scanner.knowledge.dependencies import DEPENDENCY_RULES, DependencyRule
 
@@ -37,6 +38,8 @@ __all__ = [
     "CONFIG_RULES",
     "RSA_KEY_SIZES",
     "ConfigRule",
+    "AGE_RECIPIENTS",
+    "PGP_PUBKEY_ALGORITHMS",
     "CRYPTO_ROOTS",
     "DISPATCH_RULES",
     "PKEY_TYPE_RULES",
