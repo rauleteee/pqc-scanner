@@ -26,6 +26,7 @@ from pqc_scanner.knowledge.compliance import (
     compliance_for,
     short_deadline_for,
 )
+from pqc_scanner.knowledge.config import CONFIG_RULES, RSA_KEY_SIZES, ConfigRule
 from pqc_scanner.knowledge.dependencies import DEPENDENCY_RULES, DependencyRule
 
 __all__ = [
@@ -33,6 +34,9 @@ __all__ = [
     "SHORT_DEADLINE_BY_CLASSIFICATION",
     "compliance_for",
     "short_deadline_for",
+    "CONFIG_RULES",
+    "RSA_KEY_SIZES",
+    "ConfigRule",
     "CRYPTO_ROOTS",
     "DISPATCH_RULES",
     "PKEY_TYPE_RULES",

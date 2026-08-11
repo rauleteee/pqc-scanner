@@ -17,7 +17,7 @@ post-quantum migration targets.
 
 ## What it detects
 
-Two static detectors feed one report:
+Three static detectors feed one report:
 
 - **Source code (AST) — high signal.** Parses Python with the standard `ast`
   module and reports *real uses* of vulnerable primitives (a crypto import **plus**
@@ -28,6 +28,13 @@ Two static detectors feed one report:
   `pyproject.toml` (PEP 621 + Poetry), `poetry.lock` and `Pipfile.lock` and flags
   declared cryptographic libraries with their version. Low signal on its own (it
   says a library is present, not that a primitive is used), but it seeds the CBOM.
+- **Config / infrastructure — anchored patterns.** Scans config/infra files
+  (Dockerfiles, SSH configs and `authorized_keys`, `.pem`/`.key`, `.conf`, shell
+  and CI files) for crypto that lives as *strings* the AST can't see: PEM private
+  keys (`BEGIN RSA PRIVATE KEY`), SSH public keys (`ssh-rsa`/`ssh-ed25519`/…), and
+  key-generation commands (`openssl genrsa`, `ssh-keygen -t ecdsa`). Every pattern
+  is anchored on real structure (a PEM header, the `AAAA` SSH wire format, a
+  command's algorithm flag), so a stray mention of "RSA" in prose is never a hit.
 
 Each finding carries: location, algorithm, usage context, quantum classification
 (Shor / Grover / already-PQC), severity, origin (code location | package+version),
@@ -76,19 +83,22 @@ python -m pqc_scanner [PATH]  # equivalent, without installing
 Running it against the bundled `examples/` (Python source + a `requirements.txt`):
 
 ```text
-pqc-audit 0.2.0  ·  scanned examples
-CRITICAL: 5  MEDIUM: 1  INFO: 1
-┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
-┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location              ┃ Migrate to             ┃ Deadline    ┃
-┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
-│ CRITICAL │ RSA/ECC/DH/Ed25519 │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │ 2030 → 2035 │
-│ CRITICAL │ RSA/ECC (OpenSSL)  │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │ 2030 → 2035 │
-│ CRITICAL │ RSA/ECDSA (SSH)    │ dependency     │ examples/requirements │ ML-KEM / ML-DSA        │ 2030 → 2035 │
-│ CRITICAL │ RSA-2048           │ key_generation │ examples/vulnerable_… │ ML-KEM / ML-DSA        │ 2030 → 2035 │
-│ CRITICAL │ ECC-P-256          │ key_generation │ examples/vulnerable_… │ ML-KEM (ECDH) / ML-DSA │ 2030 → 2035 │
-│ MEDIUM   │ AES                │ encryption     │ examples/vulnerable_… │ AES-256                │ —           │
-│ INFO     │ ML-KEM/ML-DSA      │ dependency     │ examples/requirements │ already post-quantum   │ compliant   │
-└──────────┴────────────────────┴────────────────┴───────────────────────┴────────────────────────┴─────────────┘
+pqc-audit 0.3.0  ·  scanned examples
+CRITICAL: 8  MEDIUM: 1  INFO: 1
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Severity ┃ Algorithm          ┃ Usage          ┃ Location               ┃ Migrate to             ┃ Deadline    ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ CRITICAL │ RSA-2048           │ configuration  │ infra/Dockerfile:4     │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ ECDSA              │ configuration  │ infra/Dockerfile:5     │ ML-DSA                 │ 2030 → 2035 │
+│ CRITICAL │ RSA                │ configuration  │ infra/authorized_keys… │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ RSA/ECC/DH/Ed25519 │ dependency     │ examples/requirements  │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ RSA/ECC (OpenSSL)  │ dependency     │ examples/requirements  │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ RSA/ECDSA (SSH)    │ dependency     │ examples/requirements  │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ RSA-2048           │ key_generation │ examples/vulnerable_…  │ ML-KEM / ML-DSA        │ 2030 → 2035 │
+│ CRITICAL │ ECC-P-256          │ key_generation │ examples/vulnerable_…  │ ML-KEM (ECDH) / ML-DSA │ 2030 → 2035 │
+│ MEDIUM   │ AES                │ encryption     │ examples/vulnerable_…  │ AES-256                │ —           │
+│ INFO     │ ML-KEM/ML-DSA      │ dependency     │ examples/requirements  │ already post-quantum   │ compliant   │
+└──────────┴────────────────────┴────────────────┴────────────────────────┴────────────────────────┴─────────────┘
 Verdict: quantum-critical cryptography in use — migration needed.
 ```
 
@@ -208,8 +218,10 @@ long-lived API token is stored in the repository.
 
 ## v1 scope
 
-- **Python** ecosystem only.
-- **Static** analysis of local files: source code (AST) + dependency manifests.
+- **Python** ecosystem only (for source code; the config detector is
+  language-agnostic since it matches file patterns, not Python calls).
+- **Static** analysis of local files: source code (AST) + dependency manifests +
+  config/infra files.
 - Outputs: colored terminal summary + JSON aligned with CycloneDX CBOM.
 
 **Known limit (by design):** the AST engine detects direct, statically-resolvable

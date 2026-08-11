@@ -50,6 +50,48 @@ MANIFEST_NAMES: frozenset[str] = frozenset(
     }
 )
 
+# Config/infra files where crypto plausibly appears as strings (SSH keys/configs,
+# PEM material, key-gen commands in Dockerfiles/CI/shell). The config detector's
+# patterns are anchored, so this set only bounds *where* to look (avoiding a scan
+# of every file in the repo), not what counts as a hit.
+CONFIG_NAMES: frozenset[str] = frozenset(
+    {
+        "Dockerfile",
+        "Containerfile",
+        "sshd_config",
+        "ssh_config",
+        "authorized_keys",
+        "nginx.conf",
+    }
+)
+# Filename prefixes (variant configs like ``Dockerfile.prod`` / ``.env.local``).
+CONFIG_NAME_PREFIXES: tuple[str, ...] = ("Dockerfile", ".env")
+CONFIG_SUFFIXES: frozenset[str] = frozenset(
+    {
+        ".pem",
+        ".key",
+        ".crt",
+        ".cer",
+        ".pub",
+        ".conf",
+        ".cnf",
+        ".yml",
+        ".yaml",
+        ".sh",
+        ".bash",
+        ".dockerfile",
+    }
+)
+
+
+def _is_config_file(name: str) -> bool:
+    """Whether a filename is a config/infra file the config detector should read."""
+    if name in CONFIG_NAMES:
+        return True
+    if name.startswith(CONFIG_NAME_PREFIXES):
+        return True
+    return Path(name).suffix in CONFIG_SUFFIXES
+
 
 def iter_python_files(
     root: str | Path,
@@ -121,4 +163,40 @@ def iter_manifest_files(
         dirnames[:] = sorted(d for d in dirnames if d not in excluded_dirs)
         for filename in sorted(filenames):
             if filename in MANIFEST_NAMES:
+                yield Path(dirpath) / filename
+
+
+def iter_config_files(
+    root: str | Path,
+    excluded_dirs: frozenset[str] = DEFAULT_EXCLUDED_DIRS,
+) -> Iterator[Path]:
+    """Yield the config/infra files under ``root`` for the configuration detector.
+
+    Mirrors :func:`iter_python_files` but selects files by name/prefix/suffix
+    (``_is_config_file``) rather than Python source, sharing the same traversal
+    and pruning rules as the other detectors.
+
+    Args:
+        root: Directory to walk, or a single config file.
+        excluded_dirs: Directory names to prune anywhere in the tree.
+
+    Yields:
+        Paths to recognized config/infra files in deterministic (sorted) order.
+
+    Raises:
+        FileNotFoundError: If ``root`` does not exist.
+    """
+    root = Path(root)
+    if not root.exists():
+        raise FileNotFoundError(f"Path does not exist: {root}")
+
+    if root.is_file():
+        if _is_config_file(root.name):
+            yield root
+        return
+
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dirnames[:] = sorted(d for d in dirnames if d not in excluded_dirs)
+        for filename in sorted(filenames):
+            if _is_config_file(filename):
                 yield Path(dirpath) / filename

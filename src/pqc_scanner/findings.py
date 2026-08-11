@@ -46,6 +46,9 @@ class Usage(str, Enum):
     ENCRYPTION = "encryption"
     HASHING = "hashing"
     DEPENDENCY = "dependency"
+    CONFIGURATION = "configuration"  # Declared in a config/infra file (key material
+    #                                  or a key-gen command); exact operation not
+    #                                  statically resolvable, like DEPENDENCY.
 
 
 class Origin(str, Enum):
@@ -53,6 +56,7 @@ class Origin(str, Enum):
 
     CODE = "code"  # A resolved call site in Python source (AST engine).
     DEPENDENCY = "dependency"  # A declared package in a manifest (dependency lookup).
+    CONFIG = "config"  # A pattern matched in a config/infra file (config detector).
 
 
 @dataclass(frozen=True)

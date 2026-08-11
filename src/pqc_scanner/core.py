@@ -1,12 +1,14 @@
 """Core scanning engine.
 
-The public API traverses the repository via `pqc_scanner.discovery` and runs two
+The public API traverses the repository via `pqc_scanner.discovery` and runs three
 detectors, aggregating their `Finding` lists into one result:
 
 * the AST engine (`pqc_scanner.ast_engine`) on every Python source file — the
-  high-signal path; and
+  high-signal path;
 * the dependency complement (`pqc_scanner.dependencies`) on every recognized
-  manifest — a low-signal lookup that seeds the CBOM.
+  manifest — a low-signal lookup that seeds the CBOM; and
+* the config detector (`pqc_scanner.config`) on config/infra files — anchored
+  patterns for crypto declared as strings (SSH keys, PEM material, key-gen commands).
 """
 
 from __future__ import annotations
@@ -14,8 +16,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from pqc_scanner.detectors.ast_engine import analyze_file
+from pqc_scanner.detectors.config import analyze_config
 from pqc_scanner.detectors.dependencies import analyze_manifest
-from pqc_scanner.detectors.discovery import iter_manifest_files, iter_python_files
+from pqc_scanner.detectors.discovery import (
+    iter_config_files,
+    iter_manifest_files,
+    iter_python_files,
+)
 from pqc_scanner.findings import Finding
 
 
@@ -36,4 +43,6 @@ def scan(path: str | Path) -> list[Finding]:
         findings.extend(analyze_file(python_file))
     for manifest in iter_manifest_files(path):
         findings.extend(analyze_manifest(manifest))
+    for config_file in iter_config_files(path):
+        findings.extend(analyze_config(config_file))
     return findings

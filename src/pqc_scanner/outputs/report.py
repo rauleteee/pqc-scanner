@@ -75,9 +75,10 @@ def summarize(path: str, findings: list[Finding]) -> dict:
         "verdict": _verdict(counts),
         "findings": [_finding_row(f) for f in ordered],
         "scope_note": (
-            "Static analysis of Python source and dependency manifests (v1). "
-            "Reports quantum-vulnerable cryptography by CBOM classification "
-            "(Shor/Grover) with a suggested migration target per finding; it does "
-            "not execute code or inspect runtime, binaries, or live endpoints."
+            "Static analysis of Python source, dependency manifests and config/infra "
+            "files (v1). Reports quantum-vulnerable cryptography by CBOM "
+            "classification (Shor/Grover) with a suggested migration target per "
+            "finding; it does not execute code or inspect runtime, binaries, or "
+            "live endpoints."
         ),
     }
