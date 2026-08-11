@@ -1,0 +1,22 @@
+# gitleaks configuration for pqc-scanner.
+#
+# This project's whole purpose is to *detect* cryptographic declarations, so the
+# literal PEM header strings `-----BEGIN ... PRIVATE KEY-----` appear on purpose:
+# as detection patterns in the config rule base, and as (body-less) fixtures in
+# its tests. gitleaks' default `private-key` rule matches those header markers and
+# reports them as leaks. They are not secrets — there is no key material — so the
+# two files that legitimately contain them are allowlisted by path. Every other
+# file keeps the full default ruleset, so a real key committed anywhere else is
+# still caught.
+
+title = "pqc-scanner gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "PEM header strings here are detection patterns / test fixtures, not secrets."
+paths = [
+  '''src/pqc_scanner/knowledge/config\.py$''',
+  '''tests/test_config\.py$''',
+]
