@@ -43,9 +43,9 @@ def test_call_tool_through_mcp_dispatch():
     # Exercise the actual MCP tool-dispatch path, not just the Python function.
     # FastMCP returns a list of content blocks; a dict result is serialized to
     # JSON in a TextContent block.
-    blocks = asyncio.run(
+    result = asyncio.run(
         mcp_server.mcp.call_tool("scan_repository", {"path": str(EXAMPLES)})
     )
-    payload = json.loads(blocks[0].text)
+    payload = json.loads(result.content[0].text)
     assert payload["summary"]["CRITICAL"] >= 1
     assert payload["verdict"].startswith("quantum-critical")

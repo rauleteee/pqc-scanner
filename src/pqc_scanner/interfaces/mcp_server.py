@@ -11,12 +11,12 @@ Run the server (stdio transport) with ``pqc-audit-mcp`` or
 
 from __future__ import annotations
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from pqc_scanner import scan, to_cbom
 from pqc_scanner.outputs.report import summarize
 
-mcp = FastMCP(
+mcp = MCPServer(
     "pqc-audit",
     instructions=(
         "Detects quantum-vulnerable cryptography (RSA, ECC, DH, Ed25519, …) across "
